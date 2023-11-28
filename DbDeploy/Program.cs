@@ -26,6 +26,7 @@ using var host = Host.CreateDefaultBuilder()
         services.AddSingleton<CommandHandler>();
         services.AddSingleton<UpdateCommandHandler>();
         services.AddSingleton<SyncCommandHandler>();
+        services.AddSingleton<StatusCommandHandler>();
         services.AddOptions<DeploymentOptions>().BindConfiguration(DeploymentOptions.SectionName);
     })
     .Build();

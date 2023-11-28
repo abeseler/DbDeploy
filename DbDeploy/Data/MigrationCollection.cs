@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 
-namespace DbDeploy.Common;
+namespace DbDeploy.Data;
 
 public sealed class MigrationCollection : IDictionary<string, Migration>
 {

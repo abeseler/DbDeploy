@@ -1,6 +1,5 @@
 ﻿global using DbDeploy;
 global using DbDeploy.Commands;
-global using DbDeploy.Common;
 global using DbDeploy.Data;
 global using DbDeploy.FileHandling;
 global using Microsoft.Extensions.Logging;

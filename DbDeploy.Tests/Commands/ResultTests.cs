@@ -1,6 +1,6 @@
-using DbDeploy.Common;
+using DbDeploy.Commands;
 
-namespace DbDeploy.Tests.Common;
+namespace DbDeploy.Tests.Commands;
 
 public sealed class ResultTests
 {

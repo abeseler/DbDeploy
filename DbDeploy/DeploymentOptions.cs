@@ -1,9 +1,9 @@
-﻿namespace DbDeploy.Common;
+﻿namespace DbDeploy;
 
 internal sealed class DeploymentOptions
 {
     public const string SectionName = "Deployment";
-    public string? Command { get; set; } = "update";
+    public string? Command { get; set; } = "Update";
     public string? Contexts { get; set; }
     public string? WorkingDirectory { get; set; }
     public string? MigrationFile { get; set; }
