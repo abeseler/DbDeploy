@@ -1,6 +1,4 @@
-﻿using DbDeploy.FileHandling;
-
-namespace DbDeploy.Tests.FileHandling;
+﻿namespace DbDeploy.Tests.FileHandling;
 
 public sealed class YamlFileParserTests
 {
