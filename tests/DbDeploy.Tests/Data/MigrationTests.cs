@@ -1,4 +1,6 @@
 ﻿
+using DbDeploy.Data;
+
 namespace DbDeploy.Tests.Data;
 
 public sealed class MigrationTests

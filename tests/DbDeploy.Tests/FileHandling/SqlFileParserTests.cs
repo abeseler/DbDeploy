@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Tests.FileHandling;
+﻿using DbDeploy.FileHandling;
+
+namespace DbDeploy.Tests.FileHandling;
 
 public sealed class SqlFileParserTests
 {

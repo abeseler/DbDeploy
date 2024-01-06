@@ -1,3 +1,5 @@
+using DbDeploy.Commands;
+
 namespace DbDeploy.Tests.Commands;
 
 public sealed class ResultTests

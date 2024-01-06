@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace DbDeployV2.Common;
+﻿namespace DbDeployV2.Common;
 
 [DebuggerDisplay("{DebugDisplay()}")]
 public readonly struct Result<TValue, TError> where TValue : class where TError : class
