@@ -1,4 +1,4 @@
-﻿namespace DbDeployV2;
+﻿namespace DbDeployV2.Common;
 
 internal static class CommandLineArgs
 {
