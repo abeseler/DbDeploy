@@ -1,6 +1,4 @@
-﻿using DbDeployV2.Common;
-
-namespace DbDeployV2;
+﻿namespace DbDeployV2;
 
 internal sealed class Application
 {

@@ -1,5 +1,4 @@
-﻿using DbDeployV2.Common;
-using Serilog;
+﻿using Serilog;
 
 using var host = Host.CreateDefaultBuilder()
     .ConfigureAppConfiguration((_, config) =>
