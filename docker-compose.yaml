@@ -1,0 +1,43 @@
+version: '3.8'
+name: "local"
+
+volumes:
+  mssql_data:
+  pg_data:
+  cache_data:
+
+services:
+  mssql:
+    image: ${DOCKER_REGISTRY-}mcr.microsoft.com/mssql/server:2022-latest
+    container_name: local-mssql
+    restart: always
+    ports:
+      - "1433:1433"
+    environment:
+      MSSQL_SA_PASSWORD: "P@ssw0rd"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    network_mode: bridge
+  postgres:
+    image: postgres:latest
+    container_name: local-postgres
+    restart: always
+    ports:
+      - 5432:5432
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=P@ssw0rd
+    network_mode: bridge
+  cache:
+    image: redis:latest
+    container_name: local-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass P@ssw0rd
+    volumes: 
+      - cache_data:/data
+    network_mode: bridge

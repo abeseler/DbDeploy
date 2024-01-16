@@ -6,7 +6,8 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
         "Deploy__RootFile": "",
-        "Deploy__ConnectionString": "Server=(localdb)\\mssqllocaldb;Database=DbDeploy;Trusted_Connection=True;MultipleActiveResultSets=true"
+        "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
+        "Serilog__MinimumLevel__Default": "Information"
       }
     }
   }

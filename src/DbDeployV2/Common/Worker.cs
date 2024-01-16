@@ -11,7 +11,7 @@ internal sealed class Worker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var start = Stopwatch.GetTimestamp();
-        if (commands.FirstOrDefault(c => c.Name.Equals(settings.Value.Command, StringComparison.OrdinalIgnoreCase)) is not {} command)
+        if (commands.FirstOrDefault(c => c.Name.Equals(settings.Value.Command, StringComparison.OrdinalIgnoreCase)) is not { } command)
         {
             Environment.ExitCode = 1;
             logger.LogError("Command '{Command}' is invalid", settings.Value.Command);
