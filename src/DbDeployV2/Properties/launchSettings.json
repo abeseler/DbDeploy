@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "DbDeploy": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Deploy__Command": "update",
+        "Deploy__RootFile": "",
+        "Deploy__ConnectionString": "Server=(localdb)\\mssqllocaldb;Database=DbDeploy;Trusted_Connection=True;MultipleActiveResultSets=true"
+      }
+    }
+  }
+}
