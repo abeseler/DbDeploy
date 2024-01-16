@@ -26,12 +26,12 @@ internal sealed class Worker(
         Environment.ExitCode = result.Match(
             onSuccess: _ =>
             {
-                logger.LogInformation("Completed successfully in {Duration}ms", duration);
+                logger.LogInformation("Completed successfully in {Duration}", duration);
                 return 0;
             },
             onFailure: error =>
             {
-                logger.LogError("Failed with error: {Error}", error.Message);
+                logger.LogError("Command failed: {Error}", error.Message);
                 return 1;
             });
 
