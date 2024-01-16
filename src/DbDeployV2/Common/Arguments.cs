@@ -1,6 +1,6 @@
 ﻿namespace DbDeploy.Common;
 
-internal static class CommandLineArgs
+internal static class Arguments
 {
     public static readonly Dictionary<string, string> Mapping = new()
     {

@@ -12,7 +12,7 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger());
 
-builder.Configuration.AddCommandLine(args, CommandLineArgs.Mapping);
+builder.Configuration.AddCommandLine(args, Arguments.Mapping);
 
 builder.Services.AddHostedService<Worker>();
 
