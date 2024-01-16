@@ -5,7 +5,8 @@ internal static class Arguments
     public static readonly Dictionary<string, string> Mapping = new()
     {
         { "--command", "Deploy:Command" },
-        { "--rootFile", "Deploy:RootFile" },
+        { "--startingFile", "Deploy:StartingFile" },
+        { "--maxLockWait", "Deploy:MaxLockWaitSeconds" },
         { "--logLevel", "Serilog:MinimumLevel:Default" }
     };
 }

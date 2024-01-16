@@ -19,6 +19,7 @@ builder.Services.AddHostedService<Worker>();
 builder.Services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
 builder.Services.AddSingleton<DbConnector>();
 builder.Services.AddSingleton<Repository>();
+builder.Services.AddSingleton<ICommand, StatusCommand>();
 builder.Services.AddSingleton<ICommand, SyncCommand>();
 builder.Services.AddSingleton<ICommand, UpdateCommand>();
 

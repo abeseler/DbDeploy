@@ -8,5 +8,5 @@ internal sealed class DeploymentOptions
     public string? WorkingDirectory { get; set; }
     public string? MigrationFile { get; set; }
     public required string ConnectionString { get; set; }
-    public int MaxLockWaitSeconds { get; set; } = 60;
+    public int MaxLockWaitSeconds { get; set; } = 120;
 }

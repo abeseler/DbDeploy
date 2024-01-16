@@ -10,6 +10,7 @@ internal sealed class Worker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        logger.LogInformation("Starting DbDeploy...");
         var start = Stopwatch.GetTimestamp();
         if (commands.FirstOrDefault(c => c.Name.Equals(settings.Value.Command, StringComparison.OrdinalIgnoreCase)) is not { } command)
         {
@@ -18,7 +19,6 @@ internal sealed class Worker(
             applicationLifetime.StopApplication();
             return;
         }
-        logger.LogInformation("Starting DbDeploy command: {Command}", command.Name);
 
         var result = await command.ExecuteAsync(stoppingToken);
         var duration = Stopwatch.GetElapsedTime(start);
