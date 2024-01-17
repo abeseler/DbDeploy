@@ -1,51 +1,26 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+﻿using DbDeploy.Commands;
 using Serilog;
+using Serilog.Events;
 
-using var host = Host.CreateDefaultBuilder()
-    .ConfigureAppConfiguration((_, config) =>
-    {
-        config.AddCommandLine(args, CommandArguments.Mappings);
-    })
-    .ConfigureLogging((context, logging) =>
-    {
-        logging.ClearProviders();
-        logging.AddSerilog(new LoggerConfiguration()
-            .ReadFrom.Configuration(context.Configuration)
-            .CreateLogger());
-    })
-    .ConfigureServices((_, services) =>
-    {
-        services.AddSingleton<DeployApp>();
-        services.AddSingleton<PathNormalizer>();
-        services.AddSingleton<FileParser>();
-        services.AddSingleton<DbConnector>();
-        services.AddSingleton<FileMigrationExtractor>();
-        services.AddSingleton<MigrationRepository>();
-        services.AddSingleton<CommandHandler>();
-        services.AddSingleton<UpdateCommandHandler>();
-        services.AddSingleton<SyncCommandHandler>();
-        services.AddSingleton<StatusCommandHandler>();
-        services.AddOptions<DeploymentOptions>().BindConfiguration(DeploymentOptions.SectionName);
-    })
-    .Build();
+var builder = Host.CreateApplicationBuilder();
 
-using var scope = host.Services.CreateScope();
-var app = scope.ServiceProvider.GetRequiredService<DeployApp>();
-var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+builder.Logging.ClearProviders();
+builder.Logging.AddSerilog(new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .WriteTo.Console()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger());
 
-try
-{
-    logger.LogInformation("Starting DbDeploy application...");
-    var result = await app.RunAsync();
+builder.Configuration.AddCommandLine(args, Arguments.Mapping);
 
-    Environment.ExitCode = result.Match(
-        onSuccess: _ => 0,
-        onFailure: _ => 1);
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Application terminated unexpectedly");
-    Environment.ExitCode = 1;
-}
+builder.Services.AddHostedService<Worker>();
+
+builder.Services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
+builder.Services.AddSingleton<DbConnector>();
+builder.Services.AddSingleton<Repository>();
+builder.Services.AddSingleton<ICommand, StatusCommand>();
+builder.Services.AddSingleton<ICommand, SyncCommand>();
+builder.Services.AddSingleton<ICommand, UpdateCommand>();
+
+await builder.Build().RunAsync();

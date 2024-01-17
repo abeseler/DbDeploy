@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34316.72
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeploy", "src\DbDeploy\DbDeploy.csproj", "{7D0C34EC-9A9A-4B1D-8B78-98E241395731}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeploy", "src\DbDeploy\DbDeploy.csproj", "{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeployV2", "src\DbDeployV2\DbDeployV2.csproj", "{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeployV1", "src\DbDeployV1\DbDeployV1.csproj", "{7D0C34EC-9A9A-4B1D-8B78-98E241395731}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeploy.Tests", "tests\DbDeploy.Tests\DbDeploy.Tests.csproj", "{5B2E779A-45BD-471F-806E-6B723994C9B6}"
 EndProject

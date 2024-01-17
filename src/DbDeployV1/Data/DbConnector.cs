@@ -1,9 +1,9 @@
 ﻿using System.Data;
 using System.Data.SqlClient;
 
-namespace DbDeploy.Migrations;
+namespace DbDeploy.Data;
 
-internal sealed class DbConnector(IOptions<Settings> options)
+internal sealed class DbConnector(IOptions<DeploymentOptions> options)
 {
     private readonly string? _connectionString = new SqlConnectionStringBuilder(options.Value.ConnectionString).ConnectionString;
 
