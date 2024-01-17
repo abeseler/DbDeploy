@@ -5,13 +5,16 @@ VisualStudioVersion = 17.8.34316.72
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeploy", "src\DbDeploy\DbDeploy.csproj", "{7D0C34EC-9A9A-4B1D-8B78-98E241395731}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDeployV2", "src\DbDeployV2\DbDeployV2.csproj", "{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeployV2", "src\DbDeployV2\DbDeployV2.csproj", "{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DbDeploy.Tests", "tests\DbDeploy.Tests\DbDeploy.Tests.csproj", "{5B2E779A-45BD-471F-806E-6B723994C9B6}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{7CC98721-C141-46E6-A3E1-B379DB2856E4}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		docker-compose.yaml = docker-compose.yaml
+		LICENSE = LICENSE
+		README.md = README.md
 	EndProjectSection
 EndProject
 Global
@@ -24,14 +27,14 @@ Global
 		{7D0C34EC-9A9A-4B1D-8B78-98E241395731}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7D0C34EC-9A9A-4B1D-8B78-98E241395731}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7D0C34EC-9A9A-4B1D-8B78-98E241395731}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A8DB6F70-7B3B-4C4F-823A-6DDDD04581F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B2E779A-45BD-471F-806E-6B723994C9B6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
