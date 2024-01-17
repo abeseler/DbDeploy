@@ -1,7 +1,4 @@
-﻿using DbDeploy.Commands;
-using DbDeploy.Data;
-
-namespace DbDeploy.Common;
+﻿namespace DbDeploy.Common;
 
 internal sealed class Worker(
     IHostApplicationLifetime applicationLifetime,

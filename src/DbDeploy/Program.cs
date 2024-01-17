@@ -1,6 +1,4 @@
-﻿using DbDeploy.Commands;
-using DbDeploy.Data;
-using Serilog;
+﻿using Serilog;
 using Serilog.Events;
 
 var builder = Host.CreateApplicationBuilder();
