@@ -1,4 +1,8 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using DbDeployV1;
+using DbDeployV1.Commands;
+using DbDeployV1.Data;
+using DbDeployV1.FileHandling;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;

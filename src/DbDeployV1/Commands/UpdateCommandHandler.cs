@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Commands;
+﻿using DbDeployV1.Data;
+
+namespace DbDeployV1.Commands;
 
 internal sealed class UpdateCommandHandler(MigrationRepository repository, IOptions<DeploymentOptions> options, ILogger<UpdateCommandHandler> logger)
 {
@@ -42,7 +44,7 @@ internal sealed class UpdateCommandHandler(MigrationRepository repository, IOpti
                     continue;
                 }
 
-                if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory?.Hash != migration.Hash))
+                if (migrationHistory is null || migration.RunAlways || migration.RunOnChange && migrationHistory?.Hash != migration.Hash)
                 {
                     _logger.LogTrace("Applying migration: {FileName} [{Title}]", migration.FileName, migration.Title);
                     var result = await _repository.ApplyMigration(migration, migrationHistory);

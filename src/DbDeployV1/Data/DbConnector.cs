@@ -1,7 +1,7 @@
 ﻿using System.Data;
 using System.Data.SqlClient;
 
-namespace DbDeploy.Data;
+namespace DbDeployV1.Data;
 
 internal sealed class DbConnector(IOptions<DeploymentOptions> options)
 {

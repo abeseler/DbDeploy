@@ -1,4 +1,7 @@
-﻿namespace DbDeploy;
+﻿using DbDeployV1.Commands;
+using DbDeployV1.FileHandling;
+
+namespace DbDeployV1;
 
 internal sealed class DeployApp(FileMigrationExtractor migrationExtractor, PathNormalizer pathNormalizer, CommandHandler commandHandler, IOptions<DeploymentOptions> options, ILogger<DeployApp> logger)
 {

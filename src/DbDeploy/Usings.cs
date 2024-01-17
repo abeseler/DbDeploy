@@ -1,5 +1,4 @@
 ﻿global using DbDeploy.Common;
-global using DbDeploy.Migrations;
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;

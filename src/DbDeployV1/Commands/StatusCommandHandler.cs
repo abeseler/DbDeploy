@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Commands;
+﻿using DbDeployV1.Data;
+
+namespace DbDeployV1.Commands;
 
 internal sealed class StatusCommandHandler(MigrationRepository repository, IOptions<DeploymentOptions> options, ILogger<UpdateCommandHandler> logger)
 {
@@ -34,7 +36,7 @@ internal sealed class StatusCommandHandler(MigrationRepository repository, IOpti
                 continue;
             }
 
-            if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory?.Hash != migration.Hash))
+            if (migrationHistory is null || migration.RunAlways || migration.RunOnChange && migrationHistory?.Hash != migration.Hash)
             {
                 _logger.LogInformation("Migration will be applied: {FileName} [{Title}]", migration.FileName, migration.Title);
                 migrationsToApply++;

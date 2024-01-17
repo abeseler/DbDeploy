@@ -1,4 +1,4 @@
-﻿namespace DbDeploy.Data;
+﻿namespace DbDeployV1.Data;
 
 internal static class SqlStatements
 {

@@ -1,6 +1,6 @@
 ﻿using System.Security.Cryptography;
 
-namespace DbDeploy.Data;
+namespace DbDeployV1.Data;
 
 public sealed class Migration
 {

@@ -1,4 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DbDeployV1.Commands;
+using DbDeployV1.Data;
+using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 
 namespace DbDeploy.FileHandling;

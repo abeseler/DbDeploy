@@ -6,9 +6,9 @@ public sealed class SqlFileParserTests
     public void ParseText_ReturnsExpectedResult()
     {
         // Arrange
-        
+
         // Act
-        
+
         // Assert
     }
 }

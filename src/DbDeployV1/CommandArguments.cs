@@ -1,4 +1,4 @@
-﻿namespace DbDeploy;
+﻿namespace DbDeployV1;
 
 internal static class CommandArguments
 {

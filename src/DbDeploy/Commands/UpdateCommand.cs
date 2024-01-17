@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Commands;
+﻿using DbDeploy.Data;
+
+namespace DbDeploy.Commands;
 
 internal sealed class UpdateCommand(Repository repo, ILogger<UpdateCommand> logger) : ICommand
 {

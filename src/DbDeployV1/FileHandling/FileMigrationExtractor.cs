@@ -1,4 +1,7 @@
-﻿namespace DbDeploy.FileHandling;
+﻿using DbDeployV1.Commands;
+using DbDeployV1.Data;
+
+namespace DbDeployV1.FileHandling;
 
 internal sealed class FileMigrationExtractor(PathNormalizer pathNormalizer, FileParser fileParser, ILogger<FileMigrationExtractor> logger)
 {

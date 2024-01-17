@@ -1,7 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DbDeployV1.Commands;
+using DbDeployV1.Data;
+using System.ComponentModel.DataAnnotations;
 using YamlDotNet.Serialization;
 
-namespace DbDeploy.FileHandling;
+namespace DbDeployV1.FileHandling;
 
 internal static class YamlFileParser
 {

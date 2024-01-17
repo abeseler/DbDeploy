@@ -1,7 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 
-namespace DbDeploy.Data;
+namespace DbDeploy.Models;
 
 internal sealed record Migration
 {

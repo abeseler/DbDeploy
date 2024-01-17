@@ -1,4 +1,4 @@
-﻿namespace DbDeploy.FileHandling;
+﻿namespace DbDeployV1.FileHandling;
 
 internal sealed class PathNormalizer(IOptions<DeploymentOptions> options, ILogger<PathNormalizer> logger)
 {

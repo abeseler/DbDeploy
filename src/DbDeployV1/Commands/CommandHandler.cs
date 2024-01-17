@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Commands;
+﻿using DbDeployV1.Data;
+
+namespace DbDeployV1.Commands;
 
 internal sealed class CommandHandler(UpdateCommandHandler updateHandler, SyncCommandHandler syncHandler, StatusCommandHandler statusHandler, IOptions<DeploymentOptions> options, ILogger<CommandHandler> logger)
 {

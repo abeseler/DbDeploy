@@ -1,4 +1,6 @@
-﻿namespace DbDeploy.Commands;
+﻿using DbDeployV1.Data;
+
+namespace DbDeployV1.Commands;
 
 internal sealed class SyncCommandHandler(MigrationRepository repository, IOptions<DeploymentOptions> options, ILogger<UpdateCommandHandler> logger)
 {

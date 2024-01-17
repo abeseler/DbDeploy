@@ -1,4 +1,5 @@
 ﻿using DbDeploy.Commands;
+using DbDeploy.Data;
 
 namespace DbDeploy.Common;
 

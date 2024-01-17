@@ -1,7 +1,7 @@
 ﻿using Dapper;
-using DbDeploy.Data;
+using DbDeploy.Models;
 
-namespace DbDeploy.Migrations;
+namespace DbDeploy.Data;
 
 internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> logger)
 {

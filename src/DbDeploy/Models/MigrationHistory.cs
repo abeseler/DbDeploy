@@ -1,4 +1,4 @@
-﻿namespace DbDeploy.Data;
+﻿namespace DbDeploy.Models;
 
 internal sealed record MigrationHistory
 {

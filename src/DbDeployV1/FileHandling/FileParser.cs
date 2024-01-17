@@ -1,7 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DbDeployV1.Commands;
+using DbDeployV1.Data;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 
-namespace DbDeploy.FileHandling;
+namespace DbDeployV1.FileHandling;
 
 internal sealed class FileParser(PathNormalizer normalizer)
 {
