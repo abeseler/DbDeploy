@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DbDeployV1\DbDeployV1.csproj" />
+    <ProjectReference Include="..\..\src\DbDeploy\DbDeploy.csproj" />
   </ItemGroup>
 
 </Project>
