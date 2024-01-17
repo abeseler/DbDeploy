@@ -1,7 +1,7 @@
 ﻿namespace DbDeploy.Common;
 
 [DebuggerDisplay("{DebugDisplay()}")]
-public readonly struct Result<TValue, TError> where TValue : class where TError : class
+internal readonly struct Result<TValue, TError> where TValue : class where TError : class
 {
     private readonly TValue? _value;
     private readonly TError? _error;
@@ -21,13 +21,13 @@ public readonly struct Result<TValue, TError> where TValue : class where TError 
     private string DebugDisplay() => IsSuccess ? $"Success: {_value}" : $"Failure: {_error}";
 }
 
-public sealed record Success(string? Message = null)
+internal sealed record Success(string? Message = null)
 {
     public static Success Default { get; } = new();
     public bool HasMessage => string.IsNullOrWhiteSpace(Message) is false;
 }
 
-public sealed record Error(string? Message = null)
+internal sealed record Error(string? Message = null)
 {
     public static Error Default { get; } = new();
     public bool HasMessage => string.IsNullOrWhiteSpace(Message) is false;
