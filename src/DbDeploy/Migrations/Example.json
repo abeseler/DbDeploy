@@ -4,6 +4,10 @@
       "/Tables",
       "/Views"
     ],
+    "contextFilter": [
+      "test"
+    ],
+    "requireContext": true,
     "errorIfMissingOrEmpty": true
   },
   {

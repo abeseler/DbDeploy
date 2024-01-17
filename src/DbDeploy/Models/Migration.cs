@@ -12,6 +12,8 @@ internal sealed record Migration
     public bool RunAlways { get; init; }
     public bool RunOnChange { get; init; }
     public bool RunInTransaction { get; init; }
+    public bool RequireContext { get; init; }
+    public string[] ContextFilter { get; init; } = [];
     public int Timeout { get; init; } = 30;
     public ErrorHandling OnError { get; init; } = ErrorHandling.Fail;
 

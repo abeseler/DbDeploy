@@ -11,16 +11,24 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         AllowTrailingCommas = true
     };
 
-    public List<Migration> ExtractAll()
+    public List<Migration> ExtractFromStartingFile()
     {
         var startingFile = new FileInfo($"{_workingDirectory}/{Normalize(settings.Value.StartingFile)}");
         if (startingFile.Exists is false)
             throw new FileNotFoundException($"Starting file does not exist: {startingFile.FullName}");
 
-        using var reader = startingFile.OpenRead();
-        var includes = JsonSerializer.Deserialize<MigrationIncludes[]>(reader, _options);
-
         var migrations = new List<Migration>();
+        if (startingFile.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            using var reader = startingFile.OpenRead();
+            var includes = JsonSerializer.Deserialize<MigrationIncludes[]>(reader, _options);
+        }
+        else if (startingFile.Extension.Equals(".sql", StringComparison.OrdinalIgnoreCase))
+        {
+            
+        }
+
+        
 
         return migrations;
     }

@@ -2,6 +2,8 @@
 
 internal sealed class MigrationIncludes
 {
-    public string[] Include { get; set; } = [];
-    public bool ErrorIfMissingOrEmpty { get; set; } = true;
+    public required string[] Include { get; init; }
+    public string[] ContextFilter { get; init; } = [];
+    public bool RequireContext { get; init; }
+    public bool ErrorIfMissingOrEmpty { get; init; } = true;
 }

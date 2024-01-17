@@ -13,7 +13,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extrator, Repository 
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var migrations = extrator.ExtractAll();
+        var migrations = extrator.ExtractFromStartingFile();
         var migrationHistories = await repo.GetAllMigrationHistories();
 
         return Errors.CommandNotImplemented;
