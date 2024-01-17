@@ -1,7 +1,6 @@
 ﻿namespace DbDeploy.Data;
 
-[DebuggerDisplay("{GetKey()}")]
-internal sealed class MigrationHistory
+internal sealed record MigrationHistory
 {
     public required string FileName { get; init; }
     public required string Title { get; init; }
@@ -12,6 +11,6 @@ internal sealed class MigrationHistory
 
     public string GetKey()
     {
-        return $"{FileName} [{Title}]";
+        return Migration.GetKey(FileName, Title);
     }
 }

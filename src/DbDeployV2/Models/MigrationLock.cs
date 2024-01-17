@@ -1,6 +1,6 @@
 ﻿namespace DbDeploy.Data;
 
-internal sealed class MigrationLock
+internal sealed record MigrationLock
 {
     public int DeploymentId { get; init; }
     public DateTime StartedOn { get; init; }

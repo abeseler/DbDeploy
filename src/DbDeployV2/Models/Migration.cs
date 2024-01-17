@@ -16,7 +16,7 @@ public sealed record Migration
 
     public string GetKey()
     {
-        return Migration.GetKey(FileName, Title);
+        return GetKey(FileName, Title);
     }
 
     public static string GetKey(string fileName, string title)
