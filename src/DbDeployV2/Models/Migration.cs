@@ -3,7 +3,7 @@ using System.Text;
 
 namespace DbDeploy.Data;
 
-public sealed record Migration
+internal sealed record Migration
 {
     public required string FileName { get; init; }
     public required string Title { get; init; }
