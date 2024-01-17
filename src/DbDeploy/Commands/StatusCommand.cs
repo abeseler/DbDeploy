@@ -1,5 +1,4 @@
-﻿
-namespace DbDeploy.Commands;
+﻿namespace DbDeploy.Commands;
 
 internal sealed class StatusCommand(ILogger<StatusCommand> logger) : ICommand
 {

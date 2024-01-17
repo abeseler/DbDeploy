@@ -1,6 +1,7 @@
 ﻿global using DbDeploy.Commands;
 global using DbDeploy.Common;
 global using DbDeploy.Data;
+global using DbDeploy.Models;
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;

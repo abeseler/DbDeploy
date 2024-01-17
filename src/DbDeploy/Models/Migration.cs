@@ -11,6 +11,7 @@ internal sealed record Migration
     public string? Hash { get; init; }
     public bool RunAlways { get; init; }
     public bool RunOnChange { get; init; }
+    public bool RunInTransaction { get; init; }
     public int Timeout { get; init; } = 30;
     public ErrorHandling OnError { get; init; } = ErrorHandling.Fail;
 

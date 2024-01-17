@@ -1,0 +1,15 @@
+[
+  {
+    "include": [
+      "/Tables",
+      "/Views"
+    ],
+    "errorIfMissingOrEmpty": true
+  },
+  {
+    "include": [
+      "/Scripts/Test.sql"
+    ],
+    "errorIfMissingOrEmpty": false
+  }
+]
