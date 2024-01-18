@@ -41,6 +41,14 @@ internal sealed class Worker(
         logger.LogInformation("Starting DbDeploy...");
         _startedTimestamp = Stopwatch.GetTimestamp();
 
+        if (string.IsNullOrWhiteSpace(settings.Value.Command))
+        {
+            logger.LogCritical("No command specified. Set a command from the cli with --command or the environment variable Deploy__Command");
+            Environment.ExitCode = 1;
+            applicationLifetime.StopApplication();
+            return;
+        }
+
         await repository.EnsureMigrationTablesExist();
 
         await base.StartAsync(stoppingToken);

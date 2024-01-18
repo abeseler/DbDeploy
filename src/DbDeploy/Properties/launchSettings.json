@@ -32,6 +32,9 @@
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
         "Serilog__MinimumLevel__Default": "Information"
       }
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
     }
   }
 }
