@@ -1,6 +1,11 @@
 version: '3.8'
 name: "local"
 
+networks:
+  local-net:
+    name: local-net
+    driver: bridge
+
 volumes:
   mssql_data:
   pg_data:
@@ -18,7 +23,8 @@ services:
       ACCEPT_EULA: "Y"
     volumes:
       - mssql_data:/var/opt/mssql
-    network_mode: bridge
+    networks:
+      - local-net
   postgres:
     image: postgres:latest
     container_name: local-postgres
@@ -30,7 +36,8 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=P@ssw0rd
-    network_mode: bridge
+    networks:
+      - local-net
   cache:
     image: redis:latest
     container_name: local-redis
@@ -40,4 +47,5 @@ services:
     command: redis-server --save 20 1 --loglevel warning --requirepass P@ssw0rd
     volumes: 
       - cache_data:/data
-    network_mode: bridge
+    networks:
+      - local-net
