@@ -4,7 +4,7 @@ namespace DbDeploy.FileHandling;
 
 internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogger<FileMigrationExtractor> logger)
 {
-    private readonly DirectoryInfo _workingDirectory = new(Normalize($"{AppDomain.CurrentDomain.BaseDirectory}/{settings.Value.WorkingDirectory}"));
+    private readonly DirectoryInfo _workingDirectory = new(Normalize($"{AppDomain.CurrentDomain.BaseDirectory}/{Settings.WorkingDirectory}"));
     private readonly JsonSerializerOptions _options = new()
     {
         PropertyNameCaseInsensitive = true,
