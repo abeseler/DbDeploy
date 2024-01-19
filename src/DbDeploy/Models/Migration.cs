@@ -24,6 +24,12 @@ internal sealed record Migration
         _ => false
     };
 
+    public bool HasInvalidChange(MigrationHistory? history) => (this, history) switch
+    {
+        ({ RunAlways: false, RunOnChange: false }, { Hash: not null }) => Hash != history.Hash,
+        _ => false
+    };
+
     public enum ErrorHandling
     {
         Fail,

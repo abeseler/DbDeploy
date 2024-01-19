@@ -2,7 +2,7 @@
 
 namespace DbDeployV1.Data;
 
-public sealed class Migration
+internal sealed class Migration
 {
     public MigrationType Type => this switch
     {
@@ -41,6 +41,12 @@ public sealed class Migration
 
         return false;
     }
+
+    public bool HasInvalidChange(MigrationHistory? history) => (this, history) switch
+    {
+        ({ RunAlways: false, RunOnChange: false }, { Hash: not null }) => Hash != history.Hash,
+        _ => false
+    };
 
     public static string CalculateHash(string fileName, string title, string sql)
     {

@@ -7,7 +7,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
     public string Name => "update";
     private readonly List<(Migration, MigrationHistory?)> MigrationsToSync = [];
     private readonly List<(Migration, MigrationHistory?)> MigrationsToApply = [];
-    private readonly List<Migration> MigrationsFilteredOut = [];
+    private int MigrationsFilteredOut = 0;
 
     public async Task<Result<Success, Error>> ExecuteAsync(CancellationToken stoppingToken = default)
     {
@@ -30,7 +30,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             {
                 if (migration.IsMissingRequiredContext(contexts))
                 {
-                    MigrationsFilteredOut.Add(migration);
+                    MigrationsFilteredOut++;
                     continue;
                 }
                 if (migrationHistories.TryGetValue(migration.Id, out var migrationHistory) && migrationHistory is { Hash: null })
@@ -38,7 +38,11 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                     MigrationsToSync.Add((migration, migrationHistory));
                     continue;
                 }
-                if (migrationHistory is null || migration.RunAlways || migration.RunOnChange && migrationHistory.Hash != migration.Hash)
+
+                if (migration.HasInvalidChange(migrationHistory))
+                    return Errors.MigrationHasInvalidChange(migration.Id);
+
+                if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory.Hash != migration.Hash))
                 {
                     MigrationsToApply.Add((migration, migrationHistory));
                 }
@@ -54,7 +58,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                       Synced              =  {Synced}
                       Filtered out        =  {FilteredOut}
 
-                    """, MigrationsToApply.Count, migrationHistories.Count, MigrationsToSync.Count, MigrationsFilteredOut.Count);
+                    """, MigrationsToApply.Count, migrationHistories.Count, MigrationsToSync.Count, MigrationsFilteredOut);
 
             return result;
         }
