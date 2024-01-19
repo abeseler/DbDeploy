@@ -1,7 +1,4 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-
-namespace DbDeploy.Models;
+﻿namespace DbDeploy.Models;
 
 internal sealed record Migration
 {
@@ -13,9 +10,9 @@ internal sealed record Migration
     public bool RunOnChange { get; init; }
     public bool RunInTransaction { get; init; }
     public bool RequireContext { get; init; }
-    public string[] ContextFilter { get; init; } = [];
-    public int Timeout { get; init; } = 30;
-    public ErrorHandling OnError { get; init; } = ErrorHandling.Fail;
+    public required string[] ContextFilter { get; init; }
+    public int Timeout { get; init; }
+    public ErrorHandling OnError { get; init; }
 
     public string GetKey()
     {
@@ -25,12 +22,6 @@ internal sealed record Migration
     public static string GetKey(string fileName, string title)
     {
         return $"{fileName} [{title}]";
-    }
-
-    public static string CalculateHash(string sql)
-    {
-        var bytes = Encoding.UTF8.GetBytes(sql);
-        return BitConverter.ToString(MD5.HashData(bytes)).Replace("-", string.Empty);
     }
 
     public enum ErrorHandling

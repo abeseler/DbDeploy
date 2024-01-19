@@ -1,108 +1,85 @@
-﻿using System.Text;
+﻿using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace DbDeploy.Models;
 
-internal sealed class MigrationBuilder(string file, string[] contextFilter, bool contextRequired = false)
+internal sealed class MigrationBuilder(string file, string[] contextFilter, bool requireContext = false)
 {
-    private readonly HashSet<string> _contextFilter = [];
-    private string? _title;
-    private bool _runAlways;
-    private bool _runOnChange;
-    private bool _runInTransaction = true;
-    private bool _contextRequired = contextRequired;
-    private int _timeout = 30;
-    private Migration.ErrorHandling _onError = Migration.ErrorHandling.Fail;
+    private static readonly JsonSerializerOptions jsonOptions = new()
+    {
+        AllowTrailingCommas = true,
+        PropertyNameCaseInsensitive = true
+    };
+    private MigrationHeader? _header;
     private readonly List<string> _sqlStatements = [];
-    private readonly StringBuilder _sqlStatementBuilder = new StringBuilder();
+    private readonly StringBuilder _stringBuilder = new();
 
-    public void AddKeyValuePair(ReadOnlySpan<char> key, ReadOnlySpan<char> value)
-    {        
-        if (key.Equals("Title", StringComparison.OrdinalIgnoreCase))
-        {
-            _title = value.ToString();
-        }
-        else if (key.Equals("RunOnChange", StringComparison.OrdinalIgnoreCase))
-        {
-            _runOnChange = bool.TryParse(value, out var result) && result;
-        }
-        else if (key.Equals("RunAlways", StringComparison.OrdinalIgnoreCase))
-        {
-            _runAlways = bool.TryParse(value, out var result) && result;
-        }
-        else if (key.Equals("RunInTransaction", StringComparison.OrdinalIgnoreCase))
-        {
-            _runInTransaction = bool.TryParse(value, out var result) && result;
-        }
-        else if (key.Equals("ContextRequired", StringComparison.OrdinalIgnoreCase))
-        {
-            _contextRequired = bool.TryParse(value, out var result) && result;
-        }
-        else if (key.Equals("ContextFilter", StringComparison.OrdinalIgnoreCase))
-        {
-            
-        }
-        else if (key.Equals("Timeout", StringComparison.OrdinalIgnoreCase))
-        {
-            _timeout = int.TryParse(value, out var result) ? result : 30;
-        }
-        else if (key.Equals("OnError", StringComparison.OrdinalIgnoreCase))
-        {
-            _onError = Enum.TryParse<Migration.ErrorHandling>(value, true, out var result) ? result : Migration.ErrorHandling.Fail;
-        }
+    public void AddHeader(string input)
+    {
+        _header = JsonSerializer.Deserialize<MigrationHeader>(input, jsonOptions);
     }
 
-    public void AddToSql(ReadOnlySpan<char> sql)
+    public void AddToSql(ReadOnlySpan<char> input)
     {
-        if (sql.StartsWith("GO", StringComparison.OrdinalIgnoreCase))
+        if (input.StartsWith("GO", StringComparison.OrdinalIgnoreCase))
         {
-            if (_sqlStatementBuilder.Length > 0)
+            if (_stringBuilder.Length > 0)
             {
-                _sqlStatements.Add(_sqlStatementBuilder.ToString());
+                var sql = _stringBuilder.ToString().Trim();
+                _sqlStatements.Add(sql);
             }
-            _sqlStatementBuilder.Clear();
+            _stringBuilder.Clear();
         }
         else
         {
-            _sqlStatementBuilder.Append(sql.TrimEnd());
+            _stringBuilder.Append(input.TrimEnd());
         }
     }
 
     public Migration? Build()
     {
-        if (_sqlStatementBuilder.Length > 0)
+        if (_stringBuilder.Length > 0)
         {
-            _sqlStatements.Add(_sqlStatementBuilder.ToString());
-            _sqlStatementBuilder.Clear();
+            _sqlStatements.Add(_stringBuilder.ToString());
+            _stringBuilder.Clear();
         }
-        foreach (var context in contextFilter)
-        {
-            _contextFilter.Add(context);
-        }
-        var result = _title is not null && _sqlStatements.Count > 0 ? new Migration()
+        var result = _header is { Title: not null } && _sqlStatements.Count > 0 ? new Migration()
         {
             FileName = file,
-            Title = _title,
+            Title = _header.Title,
             SqlStatements = [.. _sqlStatements],
-            Hash = "",
-            RunAlways = _runAlways,
-            RunOnChange = _runOnChange,
-            RunInTransaction = _runInTransaction,
-            RequireContext = _contextRequired,
-            ContextFilter = [.. _contextFilter],
-            Timeout = _timeout,
-            OnError = _onError
+            Hash = CalculateHash(_sqlStatements),
+            RunAlways = _header.RunAlways ?? false,
+            RunOnChange = _header.RunOnChange ?? false,
+            RunInTransaction = _header.RunInTransaction ?? true,
+            RequireContext = requireContext || (_header.RequireContext ?? false),
+            ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
+            Timeout = _header.Timeout ?? 30,
+            OnError = _header.OnError ?? Migration.ErrorHandling.Fail
         } : null;
 
-        _title = null;
+        _header = null;
         _sqlStatements.Clear();
-        _runAlways = false;
-        _runOnChange = false;
-        _runInTransaction = true;
-        _contextRequired = false;
-        _contextFilter.Clear();
-        _timeout = 30;
-        _onError = Migration.ErrorHandling.Fail;
 
         return result;
+    }
+
+    private static string CalculateHash(IReadOnlyList<string> input)
+    {
+        var bytes = input.SelectMany(Encoding.UTF8.GetBytes).ToArray();
+        return BitConverter.ToString(MD5.HashData(bytes)).Replace("-", string.Empty);
+    }
+
+    private sealed class MigrationHeader
+    {
+        public string? Title { get; set; }
+        public bool? RunAlways { get; set; }
+        public bool? RunOnChange { get; set; }
+        public bool? RunInTransaction { get; set; }
+        public bool? RequireContext { get; set; }
+        public int? Timeout { get; set; }
+        public string[]? ContextFilter { get; set; }
+        public Migration.ErrorHandling? OnError { get; set; }
     }
 }

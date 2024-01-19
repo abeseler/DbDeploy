@@ -25,7 +25,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         }
         else if (startingFile.Extension.Equals(".sql", StringComparison.OrdinalIgnoreCase))
         {
-            
+            var result = SqlFileParser.Parse(startingFile.FullName, null);
         }
 
         
