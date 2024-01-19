@@ -49,7 +49,7 @@ internal sealed class Worker(
             return;
         }
 
-        await repository.EnsureMigrationTablesExist();
+        await repository.EnsureMigrationTablesExist(stoppingToken);
 
         await base.StartAsync(stoppingToken);
     }

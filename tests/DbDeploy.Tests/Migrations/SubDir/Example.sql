@@ -1,6 +1,6 @@
 /* Migration
 {
-    "title": "CreateTable:1",
+	"title": "CreateTable:1",
 	"timeout": 1000,
 	"contextFilter": [
 		"testing"
@@ -16,7 +16,7 @@ GO
 
 /* Migration
 {
-    "title": "CreateProcedure:2",
+	"title": "CreateProcedure:2",
 	"runOnChange": true,
 	"runInTransaction": false
 }
@@ -30,7 +30,7 @@ GO
 
 /* Migration
 {
-    "title": "CreateProcedure:3",
+	"title": "CreateProcedure:3",
 	"runOnChange": true,
 	"runInTransaction": false
 }
