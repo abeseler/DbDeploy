@@ -16,7 +16,7 @@ You can add the following alias and function to your PowerShell profile to simpl
 	- Available commands:
 		- `update` - Applies new and changed migrations
 		- `sync` - Marks all unapplied changes as applied
-		- `status` - Show the status of what is pending
+		- `status` - Show a summary of what running update will apply and sync
 	- This command will execute *db start* and *db build* if necessary
 
  ```
