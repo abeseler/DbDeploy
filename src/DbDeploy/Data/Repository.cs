@@ -1,5 +1,4 @@
 ﻿using Dapper;
-using DbDeploy.Models;
 
 namespace DbDeploy.Data;
 
@@ -9,19 +8,20 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
     public int MigrationsApplied { get; private set; } = 0;
     public int MigrationsSynced { get; private set; } = 0;
 
-    public async Task EnsureMigrationTablesExist()
+    public async Task EnsureMigrationTablesExist(CancellationToken stoppingToken = default)
     {
-        using var connection = await dbConnector.ConnectAsync();
+        using var connection = await dbConnector.ConnectAsync(stoppingToken);
         await connection.ExecuteAsync(SqlStatements.EnsureMigrationTablesExist);
     }
 
-    public async Task<bool> AcquireLock(TimeSpan maxWaitDuration)
+    public async Task<bool> AcquireLock(TimeSpan maxWaitDuration, CancellationToken stoppingToken = default)
     {
         var waitUntil = DateTime.UtcNow.Add(maxWaitDuration);
         while (DateTime.UtcNow < waitUntil)
         {
+            stoppingToken.ThrowIfCancellationRequested();
             {
-                using var connection = await dbConnector.ConnectAsync();
+                using var connection = await dbConnector.ConnectAsync(stoppingToken);
                 _migrationLock = await connection.QuerySingleOrDefaultAsync<MigrationLock>(SqlStatements.AcquireLock);
             }
             if (_migrationLock is not null)
@@ -31,32 +31,32 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
             }
 
             logger.LogWarning("Failed to acquire lock. Will retry for another {AcquireLockWait} seconds", Math.Ceiling((waitUntil - DateTime.UtcNow).TotalSeconds));
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
 
         return _migrationLock is not null;
     }
 
-    public async Task ReleaseLock()
+    public async Task ReleaseLock(CancellationToken stoppingToken = default)
     {
         if (_migrationLock is null) return;
 
-        using var connection = await dbConnector.ConnectAsync();
+        using var connection = await dbConnector.ConnectAsync(stoppingToken);
         await connection.ExecuteAsync(SqlStatements.ReleaseLock, _migrationLock);
 
         logger.LogDebug("Lock released. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
         _migrationLock = null;
     }
 
-    public async Task<Dictionary<string, MigrationHistory>> GetAllMigrationHistories()
+    public async Task<Dictionary<string, MigrationHistory>> GetAllMigrationHistories(CancellationToken stoppingToken = default)
     {
-        using var connection = await dbConnector.ConnectAsync();
+        using var connection = await dbConnector.ConnectAsync(stoppingToken);
         var migrationHistories = await connection.QueryAsync<MigrationHistory>(SqlStatements.GetAllMigrationHistories);
 
-        return migrationHistories.ToDictionary(x => x.GetKey(), x => x);
+        return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
     }
 
-    public async Task<Result<Success, Error>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory)
+    public async Task<Result<Success, Error>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
     {
         var hasExistingHistoryRecord = migrationHistory is not null;
         migrationHistory ??= new()
@@ -70,33 +70,40 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
         migrationHistory.ExecutedSequence = MigrationsApplied + 1;
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
-        using var connection = await dbConnector.ConnectAsync();
-        using var transaction = connection.BeginTransaction();
+        using var connection = await dbConnector.ConnectAsync(stoppingToken);
+        using var transaction = migration.RunInTransaction ? connection.BeginTransaction() : null;
         try
         {
             foreach (var sql in migration.SqlStatements!)
             {
+                stoppingToken.ThrowIfCancellationRequested();
                 await connection.ExecuteAsync(sql, transaction: transaction, commandTimeout: migration.Timeout);
             }
             await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory, transaction: transaction);
-            transaction.Commit();
+            transaction?.Commit();
 
             MigrationsApplied++;
             return Success.Default;
         }
         catch (Exception ex)
         {
-            transaction.Rollback();
+            transaction?.Rollback();
+
+            if (stoppingToken.IsCancellationRequested) throw;
+
+            logger.LogError("Migration failed: {MigrationId}\n\n{ErrorMessage}\n", migration.Id, ex.Message);
 
             if (migration.OnError == Migration.ErrorHandling.Mark)
             {
+                logger.LogWarning("Marking complete because OnError is '{OnError}'", migration.OnError);
                 await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory);
             }
+
             return migration.OnError == Migration.ErrorHandling.Fail ? new Error(ex.Message) : Success.Default;
         }
     }
 
-    public async Task SyncMigrationHistory(Migration migration, MigrationHistory? migrationHistory)
+    public async Task SyncMigrationHistory(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
     {
         var hasExistingHistoryRecord = migrationHistory is not null;
         migrationHistory ??= new()
@@ -109,7 +116,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
         migrationHistory.ExecutedSequence = null;
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
-        using var connection = await dbConnector.ConnectAsync();
+        using var connection = await dbConnector.ConnectAsync(stoppingToken);
         await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory);
 
         MigrationsSynced++;

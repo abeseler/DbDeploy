@@ -40,7 +40,7 @@ internal static class SqlStatements
         """;
 
     public const string GetAllMigrationHistories = """
-        SELECT [FileName], [Title], [ExecutedOn], [ExecutedSequence], [Hash], [DeploymentId]
+        SELECT [Id], [FileName], [Title], [ExecutedOn], [ExecutedSequence], [Hash], [DeploymentId]
         FROM [dbo].[__MigrationHistory];
         """;
 

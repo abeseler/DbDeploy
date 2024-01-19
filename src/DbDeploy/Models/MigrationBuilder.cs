@@ -1,10 +1,8 @@
 ﻿using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 
 namespace DbDeploy.Models;
 
-internal sealed class MigrationBuilder(string file, string[] contextFilter, bool requireContext = false)
+internal sealed class MigrationBuilder(string file, string[] contextFilter, bool requiresContext = false)
 {
     private static readonly JsonSerializerOptions jsonOptions = new()
     {
@@ -20,7 +18,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
         _header = JsonSerializer.Deserialize<MigrationHeader>(input, jsonOptions);
     }
 
-    public void AddToSql(ReadOnlySpan<char> input)
+    public void AddToSql(string input)
     {
         if (input.StartsWith("GO", StringComparison.OrdinalIgnoreCase))
         {
@@ -30,11 +28,10 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
                 _sqlStatements.Add(sql);
             }
             _stringBuilder.Clear();
+            return;
         }
-        else
-        {
-            _stringBuilder.Append(input.TrimEnd());
-        }
+
+        _stringBuilder.AppendLine(input);
     }
 
     public Migration? Build()
@@ -53,7 +50,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
             RunAlways = _header.RunAlways ?? false,
             RunOnChange = _header.RunOnChange ?? false,
             RunInTransaction = _header.RunInTransaction ?? true,
-            RequireContext = requireContext || (_header.RequireContext ?? false),
+            RequiresContext = requiresContext || (_header.RequireContext ?? false),
             ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
             Timeout = _header.Timeout ?? 30,
             OnError = _header.OnError ?? Migration.ErrorHandling.Fail

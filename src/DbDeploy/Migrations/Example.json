@@ -1,19 +1,12 @@
 [
   {
     "include": [
-      "/Tables",
-      "/Views"
+      "SubDir"
     ],
     "contextFilter": [
       "test"
     ],
-    "requireContext": true,
+    "requiresContext": false,
     "errorIfMissingOrEmpty": true
-  },
-  {
-    "include": [
-      "/Scripts/Test.sql"
-    ],
-    "errorIfMissingOrEmpty": false
   }
 ]

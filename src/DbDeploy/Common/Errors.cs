@@ -2,7 +2,13 @@
 
 internal static class Errors
 {
-    public static Error FileDoesNotExist(string file) => new($"File does not exist: {file}");
-    public static Error FileIsEmpty(string file) => new($"File has no migrations: {file}");
-    public static Error CommandNotImplemented => new($"Command has not been implemented");
+    public static Error CommandNotImplemented => new("Command has not been implemented");
+    public static Error FailedToAcquireLock => new("Failed to acquire deployment lock");
+    public static Error DirectoryDoesNotExist => new("Directory does not exist");
+    public static Error FileDoesNotExist => new("File does not exist");
+    public static Error FileIsEmpty => new("File has no migrations");
+    public static Error FileParsingError => new("Error parsing file");
+    public static Error DuplicateTitle(string title) => new($"Duplicate migration title: [{title}]");
+    public static Error MigrationsParsingError(int errorCount) => new($"Encountered {errorCount} error{(errorCount > 1 ? "s" : "")} attempting to parse migration files");
+    public static Error DeploymentFailed(int notAppliedCount) => new($"Deployment failed. {notAppliedCount} migration{(notAppliedCount != 1 ? "s" : "")} not applied");
 }

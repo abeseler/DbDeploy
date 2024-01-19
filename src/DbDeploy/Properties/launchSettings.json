@@ -5,10 +5,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
-        "Deploy__WorkingDirectory": "Migrations",
-        "Deploy__StartingFile": "Example.sql",
+        "Deploy__StartingFile": "Example.json",
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
-        "Serilog__MinimumLevel__Default": "Information"
+        "Serilog__MinimumLevel__Default": "Debug"
       }
     },
     "DB: Sync": {
@@ -16,10 +15,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "sync",
-        "Deploy__WorkingDirectory": "Migrations",
         "Deploy__StartingFile": "Example.json",
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
-        "Serilog__MinimumLevel__Default": "Information"
+        "Serilog__MinimumLevel__Default": "Debug"
       }
     },
     "DB: Status": {
@@ -27,10 +25,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "status",
-        "Deploy__WorkingDirectory": "Migrations",
         "Deploy__StartingFile": "Example.json",
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
-        "Serilog__MinimumLevel__Default": "Information"
+        "Serilog__MinimumLevel__Default": "Debug"
       }
     },
     "Container (Dockerfile)": {

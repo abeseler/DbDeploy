@@ -13,8 +13,6 @@ CREATE TABLE [dbo].[Example] (
 	CONSTRAINT [PK_Example] PRIMARY KEY CLUSTERED ([Id] ASC)
 );
 GO
-CREATE NONCLUSTERED INDEX [IX_Example_Name] ON [dbo].[Example]([Name] ASC);
-GO
 
 /* Migration
 {
@@ -23,12 +21,23 @@ GO
 	"runInTransaction": false
 }
 */
-CREATE PROCEDURE [dbo].[GetExample]
+CREATE OR ALTER PROCEDURE [dbo].[GetExample]
 AS
 BEGIN
-	SELECT * FROM [dbo].[Example]
+	SELECT 2;
 END
 GO
 
-GRANT EXECUTE ON [dbo].[GetExample] TO [ExampleRole]
+/* Migration
+{
+    "title": "CreateProcedure:3",
+	"runOnChange": true,
+	"runInTransaction": false
+}
+*/
+CREATE OR ALTER PROCEDURE [dbo].[GetExample3]
+AS
+BEGIN
+	SELECT 3;
+END
 GO
