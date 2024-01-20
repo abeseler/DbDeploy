@@ -10,10 +10,11 @@ volumes:
   mssql_data:
   pg_data:
   cache_data:
+  seq_data:
 
 services:
   mssql:
-    image: ${DOCKER_REGISTRY-}mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: local-mssql
     restart: always
     ports:
@@ -23,8 +24,6 @@ services:
       ACCEPT_EULA: "Y"
     volumes:
       - mssql_data:/var/opt/mssql
-    networks:
-      - local-net
   postgres:
     image: postgres:latest
     container_name: local-postgres
@@ -36,8 +35,6 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=P@ssw0rd
-    networks:
-      - local-net
   cache:
     image: redis:latest
     container_name: local-redis
@@ -47,5 +44,14 @@ services:
     command: redis-server --save 20 1 --loglevel warning --requirepass P@ssw0rd
     volumes: 
       - cache_data:/data
-    networks:
-      - local-net
+  seq:
+    image: datalust/seq:latest
+    container_name: local-seq
+    restart: always
+    ports:
+      - "8000:80"
+      - "5341:5341"
+    environment:
+      ACCEPT_EULA: "Y"
+    volumes:
+      - seq_data:/data
