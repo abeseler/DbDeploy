@@ -12,7 +12,7 @@ You can add the following alias and function to your PowerShell profile to simpl
 	- Tears down the DB project and cleans up all resources
 - `db build`
 	- Builds the dbdeploy container
-	- `db {cmd} DatabaseName`
+- `db **{command}** DatabaseName`
 	- Available commands:
 		- `update` - Applies new and changed migrations
 		- `sync` - Marks all unapplied changes as applied
