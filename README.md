@@ -2,7 +2,7 @@
  
 ### Powershell Profile Helpers
 
-You can add the following alias and function to your PowerShell profile to simplify your command line commands.
+PowerShell profile functions and aliases to simplify CLI commands.
 
 - `db start`
 	- Starts the DB compose project
