@@ -41,13 +41,7 @@ function Invoke-DbAction {
 		return
 	}
 	if ($action -eq "reset") {
-		$container = docker ps --format "{{.Names}}" | Where-Object { $_ -eq "local-mssql" }
-		if ($null -ne $container) {
-			docker compose -f "$basePath\DbDeploy\docker-compose.yaml" down
-		}
-		docker volume rm local_cache_data
-		docker volume rm local_mssql_data
-		docker volume rm local_pg_data
+		docker compose -f "$basePath\DbDeploy\docker-compose.yaml" down -v
 		return
 	}
 	if ($action -eq "build"){
