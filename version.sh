@@ -3,6 +3,12 @@
 COMMIT_MESSAGE=$(git log -1 --pretty=%B)
 echo "Commit message: $COMMIT_MESSAGE"
 
+if [[ $COMMIT_MESSAGE == nobuild:* ]]
+then
+    echo "Skipping version tagging due to nobuild commit"
+    exit 0
+fi
+
 if [ -z "$(git tag -l)" ]
 then
     TAG="v0.0.0"
