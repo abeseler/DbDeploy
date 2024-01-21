@@ -2,15 +2,19 @@ version: '3.8'
 name: "local"
 
 networks:
-  local-net:
+  default:
     name: local-net
     driver: bridge
 
 volumes:
   mssql_data:
+    name: local-mssql-data
   pg_data:
+    name: local-pg-data
   cache_data:
+    name: local-cache-data
   seq_data:
+    name: local-seq-data
 
 services:
   mssql:
@@ -18,7 +22,7 @@ services:
     container_name: local-mssql
     restart: always
     ports:
-      - "1433:1433"
+      - 1433:1433
     environment:
       MSSQL_SA_PASSWORD: "P@ssw0rd"
       ACCEPT_EULA: "Y"
@@ -30,17 +34,17 @@ services:
     restart: always
     ports:
       - 5432:5432
-    volumes:
-      - pg_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=P@ssw0rd
+    volumes:
+      - pg_data:/var/lib/postgresql/data
   cache:
     image: redis:latest
     container_name: local-redis
     restart: always
     ports:
-      - '6379:6379'
+      - 6379:6379
     command: redis-server --save 20 1 --loglevel warning --requirepass P@ssw0rd
     volumes: 
       - cache_data:/data
@@ -49,8 +53,8 @@ services:
     container_name: local-seq
     restart: always
     ports:
-      - "8000:80"
-      - "5341:5341"
+      - 8000:80
+      - 5341:5341
     environment:
       ACCEPT_EULA: "Y"
     volumes:
