@@ -12,6 +12,10 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
     public (MigrationCollection Migrations, int ParsingErrors) ExtractFromStartingFile(CancellationToken stoppingToken)
     {
         var startingFile = new FileInfo(Path.GetFullPath(settings.Value.StartingFile ?? "", _workingDirectory));
+
+        logger.LogDebug("Working directory: {WorkingDirectory}", _workingDirectory);
+        logger.LogDebug("Starting file: {StartingFile}", startingFile.FullName);
+
         if (startingFile.Exists is false)
             throw new FileNotFoundException($"Starting file does not exist: {settings.Value.StartingFile}");
 
