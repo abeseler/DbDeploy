@@ -49,7 +49,22 @@ internal sealed class Worker(
             return;
         }
 
-        await repository.EnsureMigrationTablesExist(stoppingToken);
+        var connectionAttemptsRemaining = 10;
+
+        while (connectionAttemptsRemaining > 0)
+        {
+            try
+            {
+                await repository.EnsureMigrationTablesExist(stoppingToken);
+                break;
+            }
+            catch (Exception ex)
+            {
+                connectionAttemptsRemaining--;
+                logger.LogWarning("Failed to connect to the database. {ErrorMessage}.\nRetrying {RetriesRemaining} more times...", ex.Message, connectionAttemptsRemaining);
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+        }
 
         await base.StartAsync(stoppingToken);
     }
