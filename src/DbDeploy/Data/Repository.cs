@@ -57,7 +57,7 @@ internal sealed class Repository(DbConnector dbConnector, IOptions<Settings> opt
         return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
     }
 
-    public async Task<Result<Success, Error>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
     {
         var hasExistingHistoryRecord = migrationHistory is not null;
         migrationHistory ??= new()
@@ -100,7 +100,7 @@ internal sealed class Repository(DbConnector dbConnector, IOptions<Settings> opt
                 await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistoryQuery(_dbProvider) : SqlStatements.InsertMigrationHistoryQuery(_dbProvider), migrationHistory);
             }
 
-            return migration.OnError == Migration.ErrorHandling.Fail ? new Error(ex.Message) : Success.Default;
+            return migration.OnError == Migration.ErrorHandling.Fail ? new Exception(ex.Message) : Success.Default;
         }
     }
 

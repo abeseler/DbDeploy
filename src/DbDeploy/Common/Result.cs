@@ -1,34 +1,32 @@
 ﻿namespace DbDeploy.Common;
 
-[DebuggerDisplay("{DebugDisplay()}")]
-internal readonly struct Result<TValue, TError> where TValue : class where TError : class
+[DebuggerDisplay("{Succeeded ? \"Success\" : \"Failure\"}")]
+public readonly struct Result<T>
 {
-    private readonly TValue? _value;
-    private readonly TError? _error;
+    private readonly T? _value;
+    private readonly Exception? _exception;
 
-    private Result(TValue value) => _value = value;
-    private Result(TError error) => _error = error;
+    private Result(T value) => _value = value;
+    private Result(Exception exception) => _exception = exception;
 
-    public bool IsSuccess => _value is not null;
-    public bool IsFailure => IsSuccess is false;
+    public bool Succeeded => _exception is null;
+    public bool Failed => Succeeded is false;
 
-    public TResult Match<TResult>(Func<TValue, TResult> onSuccess, Func<TError, TResult> onFailure)
-        => IsSuccess ? onSuccess(_value!) : onFailure(_error!);
+    public void Deconstruct(out T? value, out Exception? exception)
+    {
+        value = _value;
+        exception = _exception;
+    }
 
-    public static implicit operator Result<TValue, TError>(TValue value) => new(value);
-    public static implicit operator Result<TValue, TError>(TError error) => new(error);
+    public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Exception, TResult> onFailure) =>
+        Succeeded ? onSuccess(_value!) : onFailure(_exception!);
 
-    private string DebugDisplay() => IsSuccess ? $"Success: {_value}" : $"Failure: {_error}";
+    public static implicit operator Result<T>(T value) => new(value);
+    public static implicit operator Result<T>(Exception exception) => new(exception);
 }
 
-internal sealed record Success(string? Message = null)
+public readonly struct Success(string? message = null)
 {
-    public static Success Default { get; } = new();
-    public bool HasMessage => string.IsNullOrWhiteSpace(Message) is false;
-}
-
-internal sealed record Error(string? Message = null)
-{
-    public static Error Default { get; } = new();
-    public bool HasMessage => string.IsNullOrWhiteSpace(Message) is false;
+    public static readonly Success Default = new();
+    public string? Message { get; } = message;
 }

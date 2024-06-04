@@ -9,14 +9,14 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
     private int MigrationsToApply = 0;
     private int MigrationsFilteredOut = 0;
 
-    public async Task<Result<Success, Error>> ExecuteAsync(CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {
         logger.LogInformation("Executing {Command} command", Name);
 
         var (migrations, parsingErrors) = extractor.ExtractFromStartingFile(stoppingToken);
 
         if (parsingErrors > 0)
-            return Errors.MigrationsParsingError(parsingErrors);
+            return Exceptions.MigrationsParsingError(parsingErrors);
 
         var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
 
@@ -35,7 +35,7 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
             }
 
             if (migration.HasInvalidChange(migrationHistory))
-                logger.LogWarning("Validation error: {ErrorMessage}", Errors.MigrationHasInvalidChange(migration.Id).Message);
+                logger.LogWarning("Validation error: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
             if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory.Hash != migration.Hash))
             {

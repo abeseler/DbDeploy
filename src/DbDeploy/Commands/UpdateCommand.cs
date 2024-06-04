@@ -9,19 +9,19 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
     private readonly List<(Migration, MigrationHistory?)> MigrationsToApply = [];
     private int MigrationsFilteredOut = 0;
 
-    public async Task<Result<Success, Error>> ExecuteAsync(CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {
         logger.LogInformation("Executing {Command} command", Name);
 
         var (migrations, parsingErrors) = extractor.ExtractFromStartingFile(stoppingToken);
 
         if (parsingErrors > 0)
-            return Errors.MigrationsParsingError(parsingErrors);
+            return Exceptions.MigrationsParsingError(parsingErrors);
 
         try
         {
             if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.MaxLockWaitSeconds), stoppingToken) is false)
-                return Errors.FailedToAcquireLock;
+                return Exceptions.FailedToAcquireLock;
 
             var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
 
@@ -40,7 +40,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                 }
 
                 if (migration.HasInvalidChange(migrationHistory))
-                    return Errors.MigrationHasInvalidChange(migration.Id);
+                    return Exceptions.MigrationHasInvalidChange(migration.Id);
 
                 if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory.Hash != migration.Hash))
                 {
@@ -49,7 +49,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             }
 
             var result = await ExecuteMigrations(stoppingToken);
-            if (result.IsSuccess)
+            if (result.Succeeded)
                 logger.LogInformation("""
                     Deployment Results:
 
@@ -68,7 +68,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
         }
     }
 
-    public async Task<Result<Success, Error>> ExecuteMigrations(CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ExecuteMigrations(CancellationToken stoppingToken = default)
     {
         foreach (var (migration, history) in MigrationsToSync)
         {
@@ -88,7 +88,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                 onFailure: error => false);
 
             if (continueToNextMigration is false)
-                return Errors.DeploymentFailed(MigrationsToApply.Count - migrationsApplied);
+                return Exceptions.DeploymentFailed(MigrationsToApply.Count - migrationsApplied);
 
             migrationsApplied++;
         }

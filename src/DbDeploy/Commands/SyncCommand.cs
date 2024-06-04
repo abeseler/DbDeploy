@@ -8,19 +8,19 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
     private readonly List<(Migration, MigrationHistory?)> MigrationsToSync = [];
     private int MigrationsFilteredOut = 0;
 
-    public async Task<Result<Success, Error>> ExecuteAsync(CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {
         logger.LogInformation("Executing {Command} command", Name);
 
         var (migrations, parsingErrors) = extractor.ExtractFromStartingFile(stoppingToken);
 
         if (parsingErrors > 0)
-            return Errors.MigrationsParsingError(parsingErrors);
+            return Exceptions.MigrationsParsingError(parsingErrors);
 
         try
         {
             if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.MaxLockWaitSeconds), stoppingToken) is false)
-                return Errors.FailedToAcquireLock;
+                return Exceptions.FailedToAcquireLock;
 
             var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
 
@@ -41,7 +41,7 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
             }
 
             var result = await ExecuteMigrations(stoppingToken);
-            if (result.IsSuccess)
+            if (result.Succeeded)
                 logger.LogInformation("""
                     Deployment Results:
 
@@ -60,7 +60,7 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
         }
     }
 
-    public async Task<Result<Success, Error>> ExecuteMigrations(CancellationToken stoppingToken = default)
+    public async Task<Result<Success>> ExecuteMigrations(CancellationToken stoppingToken = default)
     {
         foreach (var (migration, history) in MigrationsToSync)
         {

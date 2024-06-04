@@ -2,10 +2,10 @@
 
 internal static class SqlFileParser
 {
-    public static Result<List<Migration>, Error> Parse(FileInfo file, string relativePath, MigrationIncludes? include, CancellationToken stoppingToken = default)
+    public static Result<List<Migration>> Parse(FileInfo file, string relativePath, MigrationIncludes? include, CancellationToken stoppingToken = default)
     {
         if (!file.Exists && (include?.ErrorIfMissingOrEmpty ?? true))
-            return Errors.FileDoesNotExist;
+            return Exceptions.FileDoesNotExist;
 
         var migrations = new List<Migration>();
         var migrationBuilder = new MigrationBuilder(relativePath, include?.ContextFilter ?? [], include?.RequiresContext ?? false);
@@ -25,7 +25,7 @@ internal static class SqlFileParser
                     if (migrationBuilder.Build() is { } migration)
                     {
                         if (migrations.Any(m => m.Title == migration.Title))
-                            return Errors.DuplicateTitle(migration.Title);
+                            return Exceptions.DuplicateTitle(migration.Title);
 
                         migrations.Add(migration);
                     }
@@ -60,17 +60,17 @@ internal static class SqlFileParser
             if (migrationBuilder.Build() is { } lastMigration)
             {
                 if (migrations.Any(m => m.Title == lastMigration.Title))
-                    return Errors.DuplicateTitle(lastMigration.Title);
+                    return Exceptions.DuplicateTitle(lastMigration.Title);
 
                 migrations.Add(lastMigration);
             }
         }
         catch (Exception ex)
         {
-            return new Error(ex.Message);
+            return new Exception(ex.Message);
         }
 
 
-        return migrations.Count == 0 && (include?.ErrorIfMissingOrEmpty ?? true) ? Errors.FileIsEmpty : migrations;
+        return migrations.Count == 0 && (include?.ErrorIfMissingOrEmpty ?? true) ? Exceptions.FileIsEmpty : migrations;
     }
 }

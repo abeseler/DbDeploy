@@ -54,7 +54,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                     var file = new FileInfo(fullPath);
                     if (file.Exists is false && include.ErrorIfMissingOrEmpty)
                     {
-                        logger.LogError("{Error}: {Include}", Errors.FileDoesNotExist.Message, path);
+                        logger.LogError("{Error}: {Include}", Exceptions.FileDoesNotExist.Message, path);
                         errorCount++;
                         continue;
                     }
@@ -69,7 +69,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                 var directory = new DirectoryInfo(fullPath);
                 if (directory.Exists is false && include.ErrorIfMissingOrEmpty)
                 {
-                    logger.LogError("{Error}: {Include}", Errors.DirectoryDoesNotExist.Message, path);
+                    logger.LogError("{Error}: {Include}", Exceptions.DirectoryDoesNotExist.Message, path);
                     errorCount++;
                     continue;
                 }
@@ -96,11 +96,11 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
             onSuccess: parsedMigrations => parsedMigrations,
             onFailure: error =>
             {
-                logger.LogError("{Error}: {File}\n{Message}", Errors.FileParsingError.Message, filePath, error.Message);
+                logger.LogError("{Error}: {File}\n{Message}", Exceptions.FileParsingError.Message, filePath, error.Message);
                 return [];
             });
 
-        if (result.IsFailure)
+        if (result.Failed)
             errorCount++;
 
         migrations.AddIntersectionFromRange(parsed);
