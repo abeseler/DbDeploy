@@ -1,4 +1,5 @@
-﻿using DbDeploy.FileHandling;
+﻿using Dapper;
+using DbDeploy.FileHandling;
 using Serilog;
 using Serilog.Events;
 
@@ -23,5 +24,7 @@ builder.Services.AddSingleton<FileMigrationExtractor>();
 builder.Services.AddSingleton<ICommand, StatusCommand>();
 builder.Services.AddSingleton<ICommand, SyncCommand>();
 builder.Services.AddSingleton<ICommand, UpdateCommand>();
+
+DefaultTypeMap.MatchNamesWithUnderscores = true;
 
 await builder.Build().RunAsync();

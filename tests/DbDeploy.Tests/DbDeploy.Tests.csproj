@@ -27,4 +27,10 @@
     <ProjectReference Include="..\..\src\DbDeploy\DbDeploy.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Migrations\Example.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

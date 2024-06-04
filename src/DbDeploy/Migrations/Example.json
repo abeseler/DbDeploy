@@ -1,0 +1,12 @@
+[
+  {
+    "include": [
+      "SubDir"
+    ],
+    "contextFilter": [
+      "test"
+    ],
+    "requiresContext": false,
+    "errorIfMissingOrEmpty": true
+  }
+]

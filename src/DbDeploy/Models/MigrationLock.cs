@@ -3,6 +3,6 @@
 internal sealed record MigrationLock
 {
     public int DeploymentId { get; init; }
-    public DateTime StartedOn { get; init; }
-    public DateTime FinishedOn { get; set; }
+    public DateTimeOffset StartedOn { get; init; }
+    public DateTimeOffset FinishedOn { get; set; }
 }

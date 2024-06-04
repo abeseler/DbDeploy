@@ -2,8 +2,9 @@
 
 namespace DbDeploy.Data;
 
-internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> logger)
+internal sealed class Repository(DbConnector dbConnector, IOptions<Settings> options, ILogger<Repository> logger)
 {
+    private readonly string _dbProvider = options.Value.DatabaseProvider!;
     private MigrationLock? _migrationLock;
     public int MigrationsApplied { get; private set; } = 0;
     public int MigrationsSynced { get; private set; } = 0;
@@ -11,7 +12,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
     public async Task EnsureMigrationTablesExist(CancellationToken stoppingToken = default)
     {
         using var connection = await dbConnector.ConnectAsync(stoppingToken);
-        await connection.ExecuteAsync(SqlStatements.EnsureMigrationTablesExist);
+        await connection.ExecuteAsync(SqlStatements.EnsureMigrationTablesExistQuery(_dbProvider));
     }
 
     public async Task<bool> AcquireLock(TimeSpan maxWaitDuration, CancellationToken stoppingToken = default)
@@ -22,7 +23,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
             stoppingToken.ThrowIfCancellationRequested();
             {
                 using var connection = await dbConnector.ConnectAsync(stoppingToken);
-                _migrationLock = await connection.QuerySingleOrDefaultAsync<MigrationLock>(SqlStatements.AcquireLock);
+                _migrationLock = await connection.QuerySingleOrDefaultAsync<MigrationLock>(SqlStatements.AcquireLockQuery(_dbProvider));
             }
             if (_migrationLock is not null)
             {
@@ -42,7 +43,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
         if (_migrationLock is null) return;
 
         using var connection = await dbConnector.ConnectAsync(stoppingToken);
-        await connection.ExecuteAsync(SqlStatements.ReleaseLock, _migrationLock);
+        await connection.ExecuteAsync(SqlStatements.ReleaseLockQuery(_dbProvider), _migrationLock);
 
         logger.LogDebug("Lock released. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
         _migrationLock = null;
@@ -51,7 +52,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
     public async Task<Dictionary<string, MigrationHistory>> GetAllMigrationHistories(CancellationToken stoppingToken = default)
     {
         using var connection = await dbConnector.ConnectAsync(stoppingToken);
-        var migrationHistories = await connection.QueryAsync<MigrationHistory>(SqlStatements.GetAllMigrationHistories);
+        var migrationHistories = await connection.QueryAsync<MigrationHistory>(SqlStatements.GetAllMigrationHistoriesQuery(_dbProvider));
 
         return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
     }
@@ -79,7 +80,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
                 stoppingToken.ThrowIfCancellationRequested();
                 await connection.ExecuteAsync(sql, transaction: transaction, commandTimeout: migration.Timeout);
             }
-            await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory, transaction: transaction);
+            await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistoryQuery(_dbProvider) : SqlStatements.InsertMigrationHistoryQuery(_dbProvider), migrationHistory, transaction: transaction);
             transaction?.Commit();
 
             MigrationsApplied++;
@@ -96,7 +97,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
             if (migration.OnError == Migration.ErrorHandling.Mark)
             {
                 logger.LogWarning("Marking complete because OnError is '{OnError}'", migration.OnError);
-                await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory);
+                await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistoryQuery(_dbProvider) : SqlStatements.InsertMigrationHistoryQuery(_dbProvider), migrationHistory);
             }
 
             return migration.OnError == Migration.ErrorHandling.Fail ? new Error(ex.Message) : Success.Default;
@@ -117,7 +118,7 @@ internal sealed class Repository(DbConnector dbConnector, ILogger<Repository> lo
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
         using var connection = await dbConnector.ConnectAsync(stoppingToken);
-        await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistory : SqlStatements.InsertMigrationHistory, migrationHistory);
+        await connection.ExecuteAsync(hasExistingHistoryRecord ? SqlStatements.UpdateMigrationHistoryQuery(_dbProvider) : SqlStatements.InsertMigrationHistoryQuery(_dbProvider), migrationHistory);
 
         MigrationsSynced++;
     }

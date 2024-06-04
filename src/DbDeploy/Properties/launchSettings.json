@@ -6,7 +6,8 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
         "Deploy__StartingFile": "Example.json",
-        "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
+        "Deploy__DatabaseProvider": "postgres",
+        "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=wms;User Id=postgres;Password=postgres",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },

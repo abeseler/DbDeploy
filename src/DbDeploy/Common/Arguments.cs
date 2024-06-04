@@ -7,6 +7,9 @@ internal static class Arguments
         { "--command", "Deploy:Command" },
         { "--startingFile", "Deploy:StartingFile" },
         { "--maxLockWait", "Deploy:MaxLockWaitSeconds" },
+        { "--contexts", "Deploy:Contexts" },
+        { "--dbProvider", "Deploy:DatabaseProvider" },
+        { "--connectionStr", "Deploy:ConnectionString" },
         { "--logLevel", "Serilog:MinimumLevel:Default" }
     };
 }
