@@ -19,7 +19,7 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
 
         try
         {
-            if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.MaxLockWaitSeconds), stoppingToken) is false)
+            if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.LockWaitMaxSeconds), stoppingToken) is false)
                 return Exceptions.FailedToAcquireLock;
 
             var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);

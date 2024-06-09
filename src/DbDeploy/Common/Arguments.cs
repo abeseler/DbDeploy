@@ -10,6 +10,8 @@ internal static class Arguments
         { "--contexts", "Deploy:Contexts" },
         { "--dbProvider", "Deploy:DatabaseProvider" },
         { "--connectionStr", "Deploy:ConnectionString" },
+        { "--connectionAttempts", "Deploy:ConnectionAttempts" },
+        { "--connectionRetryDelay", "Deploy:ConnectionRetryDelaySeconds" },
         { "--logLevel", "Serilog:MinimumLevel:Default" }
     };
 }

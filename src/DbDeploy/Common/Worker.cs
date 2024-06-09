@@ -49,7 +49,8 @@ internal sealed class Worker(
             return;
         }
 
-        var connectionAttemptsRemaining = 10;
+        var connectionAttemptsRemaining = settings.Value.ConnectionAttempts;
+        var connectionRetryDelay = TimeSpan.FromSeconds(settings.Value.ConnectionRetryDelaySeconds);
 
         while (connectionAttemptsRemaining > 0)
         {
@@ -62,7 +63,7 @@ internal sealed class Worker(
             {
                 connectionAttemptsRemaining--;
                 logger.LogWarning("Failed to connect to the database. {ErrorMessage}.\nRetrying {RetriesRemaining} more times...", ex.Message, connectionAttemptsRemaining);
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                await Task.Delay(connectionRetryDelay, stoppingToken);
             }
         }
 

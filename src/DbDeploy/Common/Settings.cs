@@ -9,5 +9,7 @@ internal sealed class Settings
     public string? Contexts { get; set; }
     public string? DatabaseProvider { get; set; }
     public string? ConnectionString { get; set; }
-    public int MaxLockWaitSeconds { get; set; } = 120;
+    public int ConnectionAttempts { get; set; } = 10;
+    public int ConnectionRetryDelaySeconds { get; set; } = 5;
+    public int LockWaitMaxSeconds { get; set; } = 120;
 }
