@@ -20,7 +20,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
 
     public void AddToSql(string input)
     {
-        if (input.StartsWith("GO", StringComparison.OrdinalIgnoreCase))
+        if (input.StartsWith("--NewStatement", StringComparison.OrdinalIgnoreCase))
         {
             if (_stringBuilder.Length > 0)
             {

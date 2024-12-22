@@ -8,8 +8,8 @@ internal static class Arguments
         { "--startingFile", "Deploy:StartingFile" },
         { "--maxLockWait", "Deploy:MaxLockWaitSeconds" },
         { "--contexts", "Deploy:Contexts" },
-        { "--dbProvider", "Deploy:DatabaseProvider" },
-        { "--connectionStr", "Deploy:ConnectionString" },
+        { "--provider", "Deploy:DatabaseProvider" },
+        { "--connectionString", "Deploy:ConnectionString" },
         { "--connectionAttempts", "Deploy:ConnectionAttempts" },
         { "--connectionRetryDelay", "Deploy:ConnectionRetryDelaySeconds" },
         { "--logLevel", "Serilog:MinimumLevel:Default" }
