@@ -19,7 +19,8 @@ jobs:
         with:
           images: abeseler/dbdeploy
           tags: |
-            type=semver,pattern={{version}}
+            type=semver,pattern={{version}}            
+            type=semver,pattern={{major}}.{{minor}}
   
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
