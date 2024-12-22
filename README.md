@@ -44,9 +44,10 @@ The starting file is a json file that contains an array of includes. The followi
 [
   {
     "include": [
-      "init.sql",
+      "ensure_exists.sql",
       "Tables",
-      "Views"
+      "Views",
+      "PostDeplayScripts"
     ],
     "contextFilter": [],
     "requiresContext": false,
@@ -69,3 +70,7 @@ The following properties are available:
 - `contextFilter`: The contexts to use. If the context is not provided, the includes will be used for all contexts.
 - `requiresContext`: If the context is required. Default is `false`.
 - `errorIfMissingOrEmpty`: If an error should be thrown if the included file or directory is missing or empty. Default is `true`.
+
+Migrations are executed in the order they are included in the starting file. If a directory is included, the files are executed in alphabetical order.
+
+DbDeploy is not opinionated about how you organize your migrations. However, generally I prefer to have 1 folder per type of object (Tables, Views, Stored Procedures, etc.) and then 1 file per object. This makes it easier to manage and track changes.
