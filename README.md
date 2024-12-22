@@ -3,10 +3,6 @@
 This is a simple database migration tool that can be used to manage database schema changes.
 It currently supports PostgreSQL and MSSQL.
 
-## Container
-
-The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/dbdeploy).
-
 ## Configuration
 
 The configuration can be done via command line arguments. The following arguments are available:
@@ -19,7 +15,27 @@ The configuration can be done via command line arguments. The following argument
 - `--connectionString`: The connection string to use.
 - `--connectionAttempts`: The number of initial connection attempts. Default is 10.
 - `--connectionRetryDelay`: The delay between connection attempts in seconds. Default is 5 seconds.
-- `--logLevel`: The log level to use. Possible values are `Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`, and `None`. Default is `Information`.
+- `--logLevel`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
+
+The root directory is `/Migrations`. This is the parent directory of the starting file and all the files that are included.
+
+### Running the Container
+
+The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/dbdeploy).
+
+You can use the command line arguments above or the following environment variables for configuration:
+
+- `Deploy__Command`: The command to execute. Possible values are `update`, `status` and `sync`.
+- `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include.
+- `Deploy__MaxLockWaitSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
+- `Deploy__Contexts`: The contexts to use. Multiple contexts can be separated by a comma.
+- `Deploy__DatabaseProvider`: The provider to use. Possible values are `postgres` and `mssql`.
+- `Deploy__ConnectionString`: The connection string to use.
+- `Deploy__ConnectionAttempts`: The number of initial connection attempts. Default is 10.
+- `Deploy__ConnectionRetryDelaySeconds`: The delay between connection attempts in seconds. Default is 5 seconds.
+- `Serilog__MinimumLevel__Default`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
+
+To mount your migrations, you can mount a volume to `/app/Migrations`.
 
 ## Starting File
 
