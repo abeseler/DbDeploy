@@ -53,7 +53,12 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
             RequiresContext = requiresContext || (_header.RequireContext ?? false),
             ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
             Timeout = _header.Timeout ?? 30,
-            OnError = _header.OnError ?? Migration.ErrorHandling.Fail
+            OnError = _header.OnError switch
+            {
+                string s when s.Equals("Skip", StringComparison.OrdinalIgnoreCase) => Migration.ErrorHandling.Skip,
+                string s when s.Equals("Mark", StringComparison.OrdinalIgnoreCase) => Migration.ErrorHandling.Mark,
+                _ => Migration.ErrorHandling.Fail
+            }
         } : null;
 
         _header = null;
@@ -77,6 +82,6 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
         public bool? RequireContext { get; set; }
         public int? Timeout { get; set; }
         public string[]? ContextFilter { get; set; }
-        public Migration.ErrorHandling? OnError { get; set; }
+        public string? OnError { get; set; }
     }
 }
