@@ -100,9 +100,9 @@ CREATE TABLE IF NOT EXISTS widget (
 {
     "title": "widget.last_modified_on:addColumn"
 }
+*/
 ALTER TABLE widget
 ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc');
-*/
 ```
 
 The following properties are available:
