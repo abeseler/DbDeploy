@@ -73,4 +73,50 @@ The following properties are available:
 
 Migrations are executed in the order they are included in the starting file. If a directory is included, the files are executed in alphabetical order.
 
-DbDeploy is not opinionated about how you organize your migrations. However, generally I prefer to have 1 folder per type of object (Tables, Views, Stored Procedures, etc.) and then 1 file per object. This makes it easier to manage and track changes.
+DbDeploy is not opinionated about how you organize your migrations. However, generally I prefer to have 1 folder per type of object (Tables, Views, Stored Procedures, etc.) and then 1 file per object. This makes it easier to manage and track changes. Then just include your folders by dependency order in the starting file (for example, Views require Tables to exist, so apply Table migrations before Views).
+
+## Migrations
+
+Migrations are just SQL files. They can be named anything you want. The only requirement is that they are in the `/Migrations` directory. The files can contain 1 or more migrations and each migration can contain 1 or more statements. The statements are separated by a line that starts with `--NewStatement`.
+
+A migration is a block of SQL preceded by a multi-line comment that contains the migration properties.
+The comment must start with `/* Migration` and end with `*/`. The properties are in JSON format and must be valid JSON.
+
+The following is an example of a migration file:
+```sql
+/* Migration
+{
+	"title": "widget:createTable"
+}
+*/
+CREATE TABLE IF NOT EXISTS widget (
+    widget_id INT GENERATED ALWAYS AS IDENTITY,
+    description TEXT NOT NULL,
+    created_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+    CONSTRAINT pk_widget PRIMARY KEY (widget_id)
+);
+
+/* Migration
+{
+    "title": "widget.last_modified_on:addColumn"
+}
+ALTER TABLE widget
+ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc');
+*/
+```
+
+The following properties are available:
+
+- `title`: *REQUIRED* The title of the migration. This can be any string you want but must be unique within the migration file.
+- `runAlways`: If the migration should be run every time. Default is `false`.
+- `runOnChange`: If the migration should be run when the migration changes. Default is `false`.
+- `runInTransaction`: If the migration should be run in a transaction. Default is `true`.
+- `requireContext`: If the migration should require a context. Default is `false`.
+- `timeout`: The timeout in seconds for the migration. Default is `30`.
+- `contextFilter`: The required contexts for the migration. If one of the contexts is not provided, the migration will be run for all contexts.
+- `onError`: The error handling to use. Possible values are `Fail`, `Skip`, `Mark`. Default is `Fail`.
+
+The `runAlways` property is useful for migrations that need to be run every time the database is updated. For example, if you need to update a lookup table with new values, you would set `runAlways` to `true`.
+The `runOnChange` property is useful for migrations that need to be run when the migration changes. For example, if you need to update a view or stored procedure, you would set `runOnChange` to `true`.
+
+Again, DbDeploy is not opinionated about how you organize your migrations. However, because of the way files can contain multiple migrations, having 1 file per object means you get all the history of that object in 1 place.
