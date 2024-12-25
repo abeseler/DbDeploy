@@ -29,7 +29,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
             if (parsedIncludes is { })
                 migrationIncludes.AddRange(parsedIncludes);
         }
-        else if (startingFile.Extension.Equals(".sql", StringComparison.OrdinalIgnoreCase))
+        else if (startingFile.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
         {
             migrationIncludes.Add(new()
             {
@@ -59,8 +59,14 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                         continue;
                     }
 
-                    if (file.Exists)
+                    if (file.Exists && file.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
+                    {
                         ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
+                    }
+                    else
+                    {
+                        logger.LogInformation("Skipping non-SQL file: {Include}", path);
+                    }
 
                     continue;
                 }
