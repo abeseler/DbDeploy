@@ -50,7 +50,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
             RunAlways = _header.RunAlways ?? false,
             RunOnChange = _header.RunOnChange ?? false,
             RunInTransaction = _header.RunInTransaction ?? true,
-            RequiresContext = requiresContext || (_header.RequireContext ?? false),
+            ContextRequired = requiresContext || (_header.ContextRequired ?? false),
             ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
             Timeout = _header.Timeout ?? 30,
             OnError = _header.OnError switch
@@ -79,9 +79,9 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
         public bool? RunAlways { get; set; }
         public bool? RunOnChange { get; set; }
         public bool? RunInTransaction { get; set; }
-        public bool? RequireContext { get; set; }
-        public int? Timeout { get; set; }
+        public bool? ContextRequired { get; set; }
         public string[]? ContextFilter { get; set; }
+        public int? Timeout { get; set; }
         public string? OnError { get; set; }
     }
 }

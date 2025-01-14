@@ -6,7 +6,7 @@
     "contextFilter": [
       "test"
     ],
-    "requiresContext": false,
+    "contextRequired": false,
     "errorIfMissingOrEmpty": true
   }
 ]

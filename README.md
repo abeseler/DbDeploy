@@ -50,7 +50,7 @@ The starting file is a json file that contains an array of includes. The followi
       "PostDeplayScripts"
     ],
     "contextFilter": [],
-    "requiresContext": false,
+    "contextRequired": false,
     "errorIfMissingOrEmpty": true
   },
   {
@@ -58,7 +58,7 @@ The starting file is a json file that contains an array of includes. The followi
       "SeedScripts"
     ],
     "contextFilter": ["seed"],
-    "requiresContext": true,
+    "contextRequired": true,
     "errorIfMissingOrEmpty": false
   }
 ]
@@ -68,7 +68,7 @@ The following properties are available:
 
 - `include`: The files or directories to include.
 - `contextFilter`: The contexts to use. If the context is not provided, the includes will be used for all contexts.
-- `requiresContext`: If the context is required. Default is `false`.
+- `contextRequired`: If a context is required. Default is `false`.
 - `errorIfMissingOrEmpty`: If an error should be thrown if the included file or directory is missing or empty. Default is `true`.
 
 Migrations are executed in the order they are included in the starting file. If a directory is included, the files are executed in alphabetical order.

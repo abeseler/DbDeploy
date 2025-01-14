@@ -10,7 +10,7 @@ internal sealed record Migration
     public bool RunAlways { get; init; }
     public bool RunOnChange { get; init; }
     public bool RunInTransaction { get; init; }
-    public bool RequiresContext { get; init; }
+    public bool ContextRequired { get; init; }
     public required string[] ContextFilter { get; init; }
     public int Timeout { get; init; }
     public ErrorHandling OnError { get; init; }
@@ -19,7 +19,7 @@ internal sealed record Migration
 
     public bool IsMissingRequiredContext(string[] contexts) => (this, contexts) switch
     {
-        ({ RequiresContext: true }, { Length: 0 }) => true,
+        ({ ContextRequired: true }, { Length: 0 }) => true,
         ({ ContextFilter.Length: > 0 }, { Length: > 0 }) => ContextFilter.Intersect(contexts).Any() is not true,
         _ => false
     };

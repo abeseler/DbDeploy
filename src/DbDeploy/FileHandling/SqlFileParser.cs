@@ -8,7 +8,7 @@ internal static class SqlFileParser
             return Exceptions.FileDoesNotExist;
 
         var migrations = new List<Migration>();
-        var migrationBuilder = new MigrationBuilder(relativePath, include?.ContextFilter ?? [], include?.RequiresContext ?? false);
+        var migrationBuilder = new MigrationBuilder(relativePath, include?.ContextFilter ?? [], include?.ContextRequired ?? false);
         var headerBuilder = new StringBuilder();
         var buildingHeader = false;
 

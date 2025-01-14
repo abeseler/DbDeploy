@@ -23,7 +23,7 @@ public sealed class SqlFileParserTests
         migrations[0].RunAlways.Should().BeFalse();
         migrations[0].RunOnChange.Should().BeFalse();
         migrations[0].RunInTransaction.Should().BeTrue();
-        migrations[0].RequiresContext.Should().BeFalse();
+        migrations[0].ContextRequired.Should().BeFalse();
         migrations[0].ContextFilter.Should().BeEmpty();
         migrations[0].Timeout.Should().Be(30);
         migrations[0].OnError.Should().Be(Migration.ErrorHandling.Fail);
@@ -34,7 +34,7 @@ public sealed class SqlFileParserTests
         migrations[1].RunAlways.Should().BeTrue();
         migrations[1].RunOnChange.Should().BeTrue();
         migrations[1].RunInTransaction.Should().BeFalse();
-        migrations[1].RequiresContext.Should().BeTrue();
+        migrations[1].ContextRequired.Should().BeTrue();
         migrations[1].ContextFilter.Should().HaveCount(2);
         migrations[1].ContextFilter.Should().Contain("one");
         migrations[1].ContextFilter.Should().Contain("two");

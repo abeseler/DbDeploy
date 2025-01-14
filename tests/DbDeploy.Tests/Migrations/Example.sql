@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS example (
 	"runOnChange": true,
 	"runInTransaction": false,
 	"contextFilter": ["one", "two"],
-	"requireContext": true,
+	"contextRequired": true,
 	"timeout": 42069,
 	"onError": "Skip"
 }
