@@ -111,9 +111,9 @@ The following properties are available:
 - `runAlways`: If the migration should be run every time. Default is `false`.
 - `runOnChange`: If the migration should be run when the migration changes. Default is `false`.
 - `runInTransaction`: If the migration should be run in a transaction. Default is `true`.
-- `requireContext`: If the migration should require a context. Default is `false`.
-- `timeout`: The timeout in seconds for the migration. Default is `30`.
 - `contextFilter`: The required contexts for the migration. If one of the contexts is not provided, the migration will be skipped.
+- `contextRequired`: If a context is required. Default is `false`.
+- `timeout`: The timeout in seconds for the migration. Default is `30`.
 - `onError`: The error handling to use. Possible values are `Fail`, `Skip`, `Mark`. Default is `Fail`.
 
 The `runAlways` property is useful for migrations that need to be run every time the database is updated. For example, if you need to update a lookup table with new values, you would set `runAlways` to `true`.
