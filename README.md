@@ -47,7 +47,7 @@ The starting file is a json file that contains an array of includes. The followi
       "ensure_exists.sql",
       "Tables",
       "Views",
-      "PostDeplayScripts"
+      "PostDeployScripts"
     ],
     "contextFilter": [],
     "contextRequired": false,
@@ -67,7 +67,7 @@ The starting file is a json file that contains an array of includes. The followi
 The following properties are available:
 
 - `include`: The files or directories to include.
-- `contextFilter`: The contexts to use. If the context is not provided, the includes will be used for all contexts.
+- `contextFilter`: The required contexts for the include. If one of the contexts is not provided, the migration(s) of the include will be skipped.
 - `contextRequired`: If a context is required. Default is `false`.
 - `errorIfMissingOrEmpty`: If an error should be thrown if the included file or directory is missing or empty. Default is `true`.
 
@@ -113,7 +113,7 @@ The following properties are available:
 - `runInTransaction`: If the migration should be run in a transaction. Default is `true`.
 - `requireContext`: If the migration should require a context. Default is `false`.
 - `timeout`: The timeout in seconds for the migration. Default is `30`.
-- `contextFilter`: The required contexts for the migration. If one of the contexts is not provided, the migration will be run for all contexts.
+- `contextFilter`: The required contexts for the migration. If one of the contexts is not provided, the migration will be skipped.
 - `onError`: The error handling to use. Possible values are `Fail`, `Skip`, `Mark`. Default is `Fail`.
 
 The `runAlways` property is useful for migrations that need to be run every time the database is updated. For example, if you need to update a lookup table with new values, you would set `runAlways` to `true`.
