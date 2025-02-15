@@ -15,7 +15,7 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
     .WriteTo.OpenTelemetry(options =>
     {
         options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        options.Protocol = OtlpProtocol.HttpProtobuf;
+        options.Protocol = builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] == "grpc" ? OtlpProtocol.Grpc : OtlpProtocol.HttpProtobuf;
         options.ResourceAttributes = new Dictionary<string, object>
         {
             ["service.name"] = "dbdeploy"
