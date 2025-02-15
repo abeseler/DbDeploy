@@ -7,7 +7,6 @@ using Serilog.Sinks.OpenTelemetry;
 var builder = Host.CreateApplicationBuilder();
 
 builder.Logging.ClearProviders();
-
 builder.Logging.AddSerilog(new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
@@ -29,11 +28,17 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
         }
         options.ResourceAttributes = new Dictionary<string, object>
         {
-            ["service.name"] = "dbdeploy"
+            ["service.name"] = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dbdeploy"
         };
     })
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger());
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
 
 builder.Configuration.AddCommandLine(args, Arguments.Mapping);
 
