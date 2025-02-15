@@ -2,14 +2,21 @@
 using DbDeploy.FileHandling;
 using Serilog;
 using Serilog.Events;
+using Serilog.Sinks.OpenTelemetry;
 
 var builder = Host.CreateApplicationBuilder();
 
 builder.Logging.ClearProviders();
+
 builder.Logging.AddSerilog(new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .WriteTo.Console()
+    .WriteTo.OpenTelemetry(options =>
+    {
+        options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        options.Protocol = OtlpProtocol.HttpProtobuf;
+    })
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger());
 
