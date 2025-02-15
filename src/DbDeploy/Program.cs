@@ -16,6 +16,10 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
     {
         options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         options.Protocol = OtlpProtocol.HttpProtobuf;
+        options.ResourceAttributes = new Dictionary<string, object>
+        {
+            ["service.name"] = "dbdeploy"
+        };
     })
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger());
