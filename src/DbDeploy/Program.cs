@@ -14,7 +14,11 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
     .WriteTo.OpenTelemetry(options =>
     {
         options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        options.Protocol = OtlpProtocol.HttpProtobuf;
+        options.Protocol = builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] switch
+        {
+            "grpc" => OtlpProtocol.Grpc,
+            _ => OtlpProtocol.HttpProtobuf
+        };
         var headers = builder.Configuration["OTEL_EXPORTER_OTLP_HEADERS"]?.Split(',') ?? [];
         foreach (var header in headers)
         {
