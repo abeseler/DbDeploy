@@ -15,7 +15,18 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
     .WriteTo.OpenTelemetry(options =>
     {
         options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        options.Protocol = builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] == "grpc" ? OtlpProtocol.Grpc : OtlpProtocol.HttpProtobuf;
+        options.Protocol = OtlpProtocol.HttpProtobuf;
+        var headers = builder.Configuration["OTEL_EXPORTER_OTLP_HEADERS"]?.Split(',') ?? [];
+        foreach (var header in headers)
+        {
+            var (key, value) = header.Split('=') switch
+            {
+            [{ } k, { } v] => (k, v),
+                var v => throw new Exception($"Invalid header format {v}")
+            };
+
+            options.Headers.Add(key, value);
+        }
         options.ResourceAttributes = new Dictionary<string, object>
         {
             ["service.name"] = "dbdeploy"
