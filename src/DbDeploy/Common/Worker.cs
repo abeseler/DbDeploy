@@ -5,8 +5,7 @@ internal sealed class Worker(
     Repository repository,
     IEnumerable<ICommand> commands,
     IOptions<Settings> settings,
-    ILogger<Worker> logger,
-    ILoggerProvider loggerProvider) : BackgroundService
+    ILogger<Worker> logger) : BackgroundService
 {
     private long _startedTimestamp;
 
@@ -34,7 +33,7 @@ internal sealed class Worker(
                 return 1;
             });
 
-        loggerProvider.Dispose();
+        await Task.Delay(5000, stoppingToken);
 
         applicationLifetime.StopApplication();
     }
