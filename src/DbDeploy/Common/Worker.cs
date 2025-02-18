@@ -5,7 +5,8 @@ internal sealed class Worker(
     Repository repository,
     IEnumerable<ICommand> commands,
     IOptions<Settings> settings,
-    ILogger<Worker> logger) : BackgroundService
+    ILogger<Worker> logger,
+    ILoggerProvider loggerProvider) : BackgroundService
 {
     private long _startedTimestamp;
 
@@ -32,6 +33,8 @@ internal sealed class Worker(
                 logger.LogError("Command failed: {Error}", error.Message);
                 return 1;
             });
+
+        loggerProvider.Dispose();
 
         applicationLifetime.StopApplication();
     }
