@@ -12,6 +12,7 @@ internal static class Arguments
         { "--connectionString", "Deploy:ConnectionString" },
         { "--connectionAttempts", "Deploy:ConnectionAttempts" },
         { "--connectionRetryDelay", "Deploy:ConnectionRetryDelaySeconds" },
-        { "--logLevel", "Serilog:MinimumLevel:Default" }
+        { "--logLevel", "Serilog:MinimumLevel:Default" },
+        { "--shutdownWait", "Deploy:ShutdownWaitSeconds" }
     };
 }

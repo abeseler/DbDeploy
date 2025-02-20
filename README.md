@@ -15,6 +15,7 @@ The configuration can be done via command line arguments. The following argument
 - `--connectionString`: The connection string to use.
 - `--connectionAttempts`: The number of initial connection attempts. Default is 10.
 - `--connectionRetryDelay`: The delay between connection attempts in seconds. Default is 5 seconds.
+- `--shutdownWait`: The time to wait for the shutdown in seconds. Default is (0) no wait.`
 - `--logLevel`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 The root directory is `/Migrations`. This is the parent directory of the starting file and all the files that are included.
@@ -33,6 +34,7 @@ You can use the command line arguments above or the following environment variab
 - `Deploy__ConnectionString`: The connection string to use.
 - `Deploy__ConnectionAttempts`: The number of initial connection attempts. Default is 10.
 - `Deploy__ConnectionRetryDelaySeconds`: The delay between connection attempts in seconds. Default is 5 seconds.
+- `Deploy__ShutdownWaitSeconds`: The time to wait for the shutdown in seconds. Default is (0) no wait.
 - `Serilog__MinimumLevel__Default`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 To mount your migrations, you can mount a volume to `/app/Migrations`.

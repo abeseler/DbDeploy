@@ -33,7 +33,10 @@ internal sealed class Worker(
                 return 1;
             });
 
-        await Task.Delay(5000, stoppingToken);
+        if (settings.Value.ShutdownWaitSeconds > 0)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(settings.Value.ShutdownWaitSeconds), stoppingToken);
+        }
 
         applicationLifetime.StopApplication();
     }
