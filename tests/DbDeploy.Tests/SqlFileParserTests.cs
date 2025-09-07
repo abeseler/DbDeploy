@@ -1,6 +1,6 @@
-﻿using DbDeploy.FileHandling;
+﻿using Xunit;
+using DbDeploy.FileHandling;
 using DbDeploy.Models;
-using FluentAssertions;
 
 namespace DbDeploy.Tests;
 
@@ -13,33 +13,37 @@ public sealed class SqlFileParserTests
         var result = SqlFileParser.Parse(file, "Migrations/Example.sql", null, CancellationToken.None);
         var (migrations, exception) = result;
 
-        result.Succeeded.Should().BeTrue();
-        exception.Should().BeNull();
-        migrations.Should().NotBeNullOrEmpty();
-        migrations.Should().HaveCount(2);
+        Assert.True(result.Succeeded);
+        Assert.Null(exception);
+        Assert.NotNull(migrations);
+        Assert.Equal(2, migrations!.Count);
 
-        migrations![0].FileName.Should().Be("Migrations/Example.sql");
-        migrations[0].Title.Should().Be("example:1");
-        migrations[0].RunAlways.Should().BeFalse();
-        migrations[0].RunOnChange.Should().BeFalse();
-        migrations[0].RunInTransaction.Should().BeTrue();
-        migrations[0].ContextRequired.Should().BeFalse();
-        migrations[0].ContextFilter.Should().BeEmpty();
-        migrations[0].Timeout.Should().Be(30);
-        migrations[0].OnError.Should().Be(Migration.ErrorHandling.Fail);
-        migrations[0].SqlStatements.Should().HaveCount(1);
+        var migration = migrations![0];
 
-        migrations[1].FileName.Should().Be("Migrations/Example.sql");
-        migrations[1].Title.Should().Be("example:2");
-        migrations[1].RunAlways.Should().BeTrue();
-        migrations[1].RunOnChange.Should().BeTrue();
-        migrations[1].RunInTransaction.Should().BeFalse();
-        migrations[1].ContextRequired.Should().BeTrue();
-        migrations[1].ContextFilter.Should().HaveCount(2);
-        migrations[1].ContextFilter.Should().Contain("one");
-        migrations[1].ContextFilter.Should().Contain("two");
-        migrations[1].Timeout.Should().Be(42069);
-        migrations[1].OnError.Should().Be(Migration.ErrorHandling.Skip);
-        migrations[1].SqlStatements.Should().HaveCount(2);
+        Assert.Equal("Migrations/Example.sql", migration.FileName);
+        Assert.Equal("example:1", migration.Title);
+        Assert.False(migration.RunAlways);
+        Assert.False(migration.RunOnChange);
+        Assert.True(migration.RunInTransaction);
+        Assert.False(migration.ContextRequired);
+        Assert.Empty(migration.ContextFilter);
+        Assert.Equal(30, migration.Timeout);
+        Assert.Equal(Migration.ErrorHandling.Fail, migration.OnError);
+        Assert.Single(migration.SqlStatements);
+
+        migration = migrations[1];
+
+        Assert.Equal("Migrations/Example.sql", migration.FileName);
+        Assert.Equal("example:2", migration.Title);
+        Assert.True(migration.RunAlways);
+        Assert.True(migration.RunOnChange);
+        Assert.False(migration.RunInTransaction);
+        Assert.True(migration.ContextRequired);
+        Assert.Equal(2, migration.ContextFilter.Length);
+        Assert.Contains("one", migration.ContextFilter);
+        Assert.Contains("two", migration.ContextFilter);
+        Assert.Equal(42069, migration.Timeout);
+        Assert.Equal(Migration.ErrorHandling.Skip, migration.OnError);
+        Assert.Equal(2, migration.SqlStatements.Length);
     }
 }
