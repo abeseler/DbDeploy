@@ -1,7 +1,25 @@
 # DbDeploy
 
 This is a simple database migration tool that can be used to manage database schema changes.
-It currently supports PostgreSQL and MSSQL.
+It currently supports PostgreSQL, MSSQL and SQLite.
+
+## Deployment Semantics
+
+Understanding a few core behaviors will help you use DbDeploy safely:
+
+- **Roll-forward only.** DbDeploy has no concept of "down" or rollback migrations. Recovery from a bad migration is always done by writing a new migration that corrects the problem. Design your changes accordingly.
+- **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration.
+- **Write idempotent, defensive SQL.** Because there is no rollback and each migration commits independently, migrations should be written so a partially-completed deployment can be safely re-run — e.g. `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, guarded inserts, etc.
+- **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes the deployment to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check.
+
+### Deployment Lock
+
+DbDeploy acquires a row-based lock (in the `__migration_lock` table) so that only one deployment runs at a time. The lock is released automatically when the run finishes.
+
+**If a deployment is force-killed** (e.g. an OOM or a cancelled pipeline job), the lock row may be left open (`finished_on IS NULL`), which will block subsequent deployments until it is cleared manually:
+```sql
+UPDATE __migration_lock SET finished_on = NOW() WHERE finished_on IS NULL;
+```
 
 ## Configuration
 
@@ -11,7 +29,7 @@ The configuration can be done via command line arguments. The following argument
 - `--startingFile`: The starting file. This is a json file that contains the files to include.
 - `--maxLockWait`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `--contexts`: The contexts to use. Multiple contexts can be separated by a comma.
-- `--provider`: The provider to use. Possible values are `postgres` and `mssql`.
+- `--provider`: The provider to use. Possible values are `postgres`, `mssql` and `sqlite`.
 - `--connectionString`: The connection string to use.
 - `--connectionAttempts`: The number of initial connection attempts. Default is 10.
 - `--connectionRetryDelay`: The delay between connection attempts in seconds. Default is 5 seconds.
@@ -27,9 +45,9 @@ You can use the command line arguments above or the following environment variab
 
 - `Deploy__Command`: The command to execute. Possible values are `update`, `status` and `sync`.
 - `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include.
-- `Deploy__MaxLockWaitSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
+- `Deploy__LockWaitMaxSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `Deploy__Contexts`: The contexts to use. Multiple contexts can be separated by a comma.
-- `Deploy__DatabaseProvider`: The provider to use. Possible values are `postgres` and `mssql`.
+- `Deploy__DatabaseProvider`: The provider to use. Possible values are `postgres`, `mssql` and `sqlite`.
 - `Deploy__ConnectionString`: The connection string to use.
 - `Deploy__ConnectionAttempts`: The number of initial connection attempts. Default is 10.
 - `Deploy__ConnectionRetryDelaySeconds`: The delay between connection attempts in seconds. Default is 5 seconds.
@@ -114,7 +132,10 @@ The following properties are available:
 - `contextFilter`: The required contexts for the migration. If one of the contexts is not provided, the migration will be skipped.
 - `contextRequired`: If a context is required. Default is `false`.
 - `timeout`: The timeout in seconds for the migration. Default is `30`.
-- `onError`: The error handling to use. Possible values are `Fail`, `Skip`, `Mark`. Default is `Fail`.
+- `onError`: How to handle a failure of this migration. Default is `Fail`.
+  - `Fail`: Stop the deployment and exit with a non-zero code.
+  - `Skip`: Log the error, do **not** record the migration as applied, and continue to the next migration. It will be retried on the next run.
+  - `Mark`: Log the error but record the migration as **successfully applied** so it will not be retried. ⚠️ Use with caution — this hides a real failure and can lead to schema drift.
 
 The `runAlways` property is useful for migrations that need to be run every time the database is updated. For example, if you need to update a lookup table with new values, you would set `runAlways` to `true`.
 The `runOnChange` property is useful for migrations that need to be run when the migration changes. For example, if you need to update a view or stored procedure, you would set `runOnChange` to `true`.

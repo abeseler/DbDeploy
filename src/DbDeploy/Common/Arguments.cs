@@ -6,13 +6,12 @@ internal static class Arguments
     {
         { "--command", "Deploy:Command" },
         { "--startingFile", "Deploy:StartingFile" },
-        { "--maxLockWait", "Deploy:MaxLockWaitSeconds" },
+        { "--maxLockWait", "Deploy:LockWaitMaxSeconds" },
         { "--contexts", "Deploy:Contexts" },
         { "--provider", "Deploy:DatabaseProvider" },
         { "--connectionString", "Deploy:ConnectionString" },
         { "--connectionAttempts", "Deploy:ConnectionAttempts" },
         { "--connectionRetryDelay", "Deploy:ConnectionRetryDelaySeconds" },
-        { "--logLevel", "Serilog:MinimumLevel:Default" },
-        { "--shutdownWait", "Deploy:ShutdownWaitSeconds" }
+        { "--logLevel", "Serilog:MinimumLevel:Default" }
     };
 }
