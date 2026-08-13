@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup .NET9
+      - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '10.x'
