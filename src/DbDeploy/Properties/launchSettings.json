@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "Postgres: Update": {
+    "Postgres": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -13,32 +13,18 @@
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },
-    "Postgres: Sync": {
+    "Sqlite": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Deploy__Command": "sync",
-        "Deploy__StartingFile": "Example.json",
-        "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
+        "Deploy__Command": "dryrun",
+        "Deploy__StartingFile": "migrations_sqlite.json",
+        "Deploy__DatabaseProvider": "sqlite",
+        "Deploy__ConnectionString": "Data Source=App.db",
         "Deploy__ConnectionAttempts": "3",
         "Deploy__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
-    },
-    "Postgres: Status": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "Deploy__Command": "status",
-        "Deploy__StartingFile": "Example.json",
-        "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
-        "Deploy__ConnectionAttempts": "3",
-        "Deploy__ConnectionRetryDelaySeconds": "5",
-        "Serilog__MinimumLevel__Default": "Debug"
-      }
-    },
-    "Container (Dockerfile)": {
-      "commandName": "Docker"
     }
   }
 }

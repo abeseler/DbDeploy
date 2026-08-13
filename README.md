@@ -21,11 +21,19 @@ DbDeploy acquires a row-based lock (in the `__migration_lock` table) so that onl
 UPDATE __migration_lock SET finished_on = NOW() WHERE finished_on IS NULL;
 ```
 
+### Dry Run
+
+The `dryrun` command reports the same pending/applied/synced/filtered counts as `status`, but also writes the SQL that *would* be applied to a plan file (`--outputFile`, default `dbdeploy-plan.sql`). It does not acquire the deployment lock and applies nothing.
+
+This is useful as a review/approval gate in a pipeline: generate the plan, publish it as an artifact for a human to review, then run `update` once approved.
+
+The plan reflects the exact execution order and applies the same context filtering as a real deployment, so it only contains the migrations that would actually run. Each migration is annotated with its identity and its `runInTransaction`, `timeout` and `onError` settings. Only pending migrations are included; migrations that would be marked as applied without executing (see `sync`) are counted but not written.
+
 ## Configuration
 
 The configuration can be done via command line arguments. The following arguments are available:
 
-- `--command`: The command to execute. Possible values are `update`, `status` and `sync`.
+- `--command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
 - `--startingFile`: The starting file. This is a json file that contains the files to include.
 - `--maxLockWait`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `--contexts`: The contexts to use. Multiple contexts can be separated by a comma.
@@ -33,6 +41,7 @@ The configuration can be done via command line arguments. The following argument
 - `--connectionString`: The connection string to use.
 - `--connectionAttempts`: The number of initial connection attempts. Default is 10.
 - `--connectionRetryDelay`: The delay between connection attempts in seconds. Default is 5 seconds.
+- `--outputFile`: The file the `dryrun` command writes the migration plan to. Default is `dbdeploy-plan.sql`.
 - `--logLevel`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 The root directory is `/Migrations`. This is the parent directory of the starting file and all the files that are included.
@@ -43,7 +52,7 @@ The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/dbd
 
 You can use the command line arguments above or the following environment variables for configuration:
 
-- `Deploy__Command`: The command to execute. Possible values are `update`, `status` and `sync`.
+- `Deploy__Command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
 - `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include.
 - `Deploy__LockWaitMaxSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `Deploy__Contexts`: The contexts to use. Multiple contexts can be separated by a comma.
@@ -51,6 +60,7 @@ You can use the command line arguments above or the following environment variab
 - `Deploy__ConnectionString`: The connection string to use.
 - `Deploy__ConnectionAttempts`: The number of initial connection attempts. Default is 10.
 - `Deploy__ConnectionRetryDelaySeconds`: The delay between connection attempts in seconds. Default is 5 seconds.
+- `Deploy__OutputFile`: The file the `dryrun` command writes the migration plan to. Default is `dbdeploy-plan.sql`.
 - `Serilog__MinimumLevel__Default`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 To mount your migrations, you can mount a volume to `/app/Migrations`.

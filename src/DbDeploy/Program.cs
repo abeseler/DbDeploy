@@ -58,6 +58,7 @@ services.AddSingleton<FileMigrationExtractor>();
 services.AddSingleton<ICommand, StatusCommand>();
 services.AddSingleton<ICommand, SyncCommand>();
 services.AddSingleton<ICommand, UpdateCommand>();
+services.AddSingleton<ICommand, DryRunCommand>();
 
 services.AddSingleton<Repository>();
 services.AddSingleton<IDatabaseProvider>(sp =>

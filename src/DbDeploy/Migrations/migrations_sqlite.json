@@ -1,0 +1,12 @@
+[
+  {
+    "include": [
+      "sqlite"
+    ],
+    "contextFilter": [
+      "test"
+    ],
+    "contextRequired": false,
+    "errorIfMissingOrEmpty": true
+  }
+]
