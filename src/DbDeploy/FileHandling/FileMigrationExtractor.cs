@@ -86,7 +86,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                 if (directory.Exists is false)
                     continue;
 
-                foreach (var file in directory.EnumerateFiles())
+                foreach (var file in directory.EnumerateFiles().OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
                 {
                     ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
                 }
