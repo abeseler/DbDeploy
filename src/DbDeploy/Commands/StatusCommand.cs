@@ -13,15 +13,14 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var (migrations, parsingErrors) = extractor.ExtractFromStartingFile(stoppingToken);
-
-        if (parsingErrors > 0)
-            return Exceptions.MigrationsParsingError(parsingErrors);
-
         var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(x => x.FileName)], stoppingToken);
+
+        if (extractionError is not null)
+            return extractionError;
 
         var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
-        foreach (var migration in migrations.Values)
+        foreach (var migration in migrations!.Values)
         {
             if (migration.IsMissingRequiredContext(contexts))
             {

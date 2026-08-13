@@ -9,7 +9,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         AllowTrailingCommas = true
     };
 
-    public (MigrationCollection Migrations, int ParsingErrors) ExtractFromStartingFile(CancellationToken stoppingToken)
+    public Result<MigrationCollection> ExtractFromStartingFile(IReadOnlyCollection<string> appliedFileNames, CancellationToken stoppingToken)
     {
         var startingFile = new FileInfo(Path.GetFullPath(settings.Value.StartingFile ?? "", _workingDirectory));
 
@@ -93,7 +93,24 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
             }
         }
 
-        return (migrations, errorCount);
+        return BuildOrdered(migrations, errorCount, appliedFileNames);
+    }
+
+    private Result<MigrationCollection> BuildOrdered(MigrationCollection migrations, int errorCount, IReadOnlyCollection<string> appliedFileNames)
+    {
+        if (errorCount > 0)
+            return Exceptions.MigrationsParsingError(errorCount);
+
+        var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
+        var (ordered, error) = MigrationOrderResolver.Resolve(migrations.Values.ToList(), contexts, appliedFileNames);
+        if (error is not null)
+            return error;
+
+        var result = new MigrationCollection();
+        foreach (var migration in ordered!)
+            result.Add(migration.Id, migration);
+
+        return result;
     }
 
     private void ExtractMigrationFromSqlFile(MigrationCollection migrations, FileInfo file, MigrationIncludes include, ref int errorCount, CancellationToken stoppingToken)

@@ -3,6 +3,22 @@
 This is a simple database migration tool that can be used to manage database schema changes.
 It currently supports PostgreSQL, MSSQL and SQLite.
 
+## Design & Philosophy
+
+DbDeploy grew out of experience with Flyway and Liquibase, keeping the parts that worked and dropping the parts that added friction. A few principles shape it:
+
+- **The tool is not opinionated about structure — but it was designed for one file per object.** DbDeploy just applies the files your starting file points to, in order. You can use it the Flyway way: one `Migrations` folder full of versioned files whose names guarantee ordering. But it was built to also support a different model that I prefer — point it at your existing *object folders* (Tables, Views, Stored Procedures) and let those files *be* the migrations.
+
+- **Your object folders can *be* your migrations.** A common pattern is to keep a folder of object definitions *and* a separate folder of migration/rollback scripts that duplicate those changes — two representations of the same change kept in sync by hand. DbDeploy makes the second folder optional: point it at your object folders and the files in them are the migrations. One source of truth.
+
+- **One file per object, accumulating its history.** Because a file can hold multiple migration blocks, an object's whole change history can live in one place. This makes the model a hybrid:
+  - *Tables* are typically **delta-based** — the file accumulates blocks (`create`, then `addColumn`, then `addColumn`), so the file is the object's history, not a snapshot of its current shape.
+  - *Views, procedures and functions* are typically **state-based** — a single block with `runOnChange: true` that is re-applied whenever its SQL changes.
+
+- **DbDeploy does not parse or validate your SQL.** It only parses the two things it must: the JSON migration header and the statement separators. Everything else is handed to the database, which is the authority on whether the SQL is valid. The tool's job is to *try to apply* your SQL in a known order and record what succeeded — not to understand it.
+
+- **Ordering is by convention, not by parsing.** Because the tool doesn't understand your SQL, it can't infer dependencies. Execution order comes from the starting file's include order and alphabetical order within a folder. In practice this means either naming files to guarantee order (the single-folder approach) or grouping by dependency (for example, a separate folder for foreign keys applied after all tables exist, or a `Views2` folder for views that reference other views).
+
 ## Deployment Semantics
 
 Understanding a few core behaviors will help you use DbDeploy safely:
@@ -141,6 +157,7 @@ ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE '
 The following properties are available:
 
 - `title`: *REQUIRED* The title of the migration. This can be any string you want but must be unique within the migration file.
+- `dependsOn`: An array of migration files this migration must run after. See [Dependencies](#dependencies) below.
 - `runAlways`: If the migration should be run every time. Default is `false`.
 - `runOnChange`: If the migration should be run when the migration changes. Default is `false`.
 - `runInTransaction`: If the migration should be run in a transaction. Default is `true`.
@@ -156,3 +173,42 @@ The `runAlways` property is useful for migrations that need to be run every time
 The `runOnChange` property is useful for migrations that need to be run when the migration changes. For example, if you need to update a view or stored procedure, you would set `runOnChange` to `true`.
 
 Again, DbDeploy is not opinionated about how you organize your migrations. However, because of the way files can contain multiple migrations, having 1 file per object means you get all the history of that object in 1 place.
+
+## Dependencies
+
+By default, migrations run in the order they are included (starting file order, then alphabetical within a directory). For most cases, grouping folders by dependency in the starting file is enough (for example, apply `Tables` before `Views`).
+
+When folder ordering is not enough — or when you want a migration's ordering requirement to be explicit and reorder-safe — a migration can declare `dependsOn`:
+
+```sql
+/* Migration
+{
+    "title": "fk_orders_customer",
+    "dependsOn": ["Tables/orders.sql", "Tables/customers.sql"]
+}
+*/
+ALTER TABLE orders
+ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers (customer_id);
+```
+
+Behavior and rationale:
+
+- **References are by file, not by title.** A file is the natural, filesystem-unique key, and you never have to edit the file you depend on. Depending on a file means "after *all* in-context migrations in that file."
+- **Ordering stays convention-first.** `dependsOn` only adds constraints on top of the existing include order; a stable topological sort keeps everything else where it was. Declaring nothing behaves exactly as before.
+- **Paths are normalized for you.** Separators (`\` or `/`) and a leading slash don't matter, and matching is case-insensitive — so you don't have to mirror the tool's internal path format.
+- **Validation is fail-fast, before any SQL runs.** The deployment stops with a clear error if a reference is invalid (see edge cases below) or forms a dependency cycle (the cycle path is printed).
+
+Because DbDeploy does not parse your SQL, it cannot infer dependencies — `dependsOn` is pure ordering metadata that you opt into where it matters.
+
+### Dependency edge cases
+
+DbDeploy does not track deleted migrations, and `dependsOn` is designed to stay consistent with that:
+
+- **The referenced file exists → it is ordered before the dependent.** Removing a file that nothing references simply changes the order of what remains; because already-applied migrations are skipped regardless of position, this is safe and produces no error.
+- **The referenced file is missing but was already applied → the reference is treated as satisfied.** You can delete an old migration file even if something still declares `dependsOn` on it; since it already ran, the ordering constraint is already met and no error is raised.
+- **The referenced file is missing and was never applied → hard error.** This is almost always a typo or a genuinely missing dependency, so the deployment stops rather than silently running in the wrong order.
+- **The reference matches more than one file (case-insensitively) → hard error.** Ambiguous references are rejected.
+- **The referenced migrations are all excluded by the active context → hard error.** Depending on something that will not run in the current context is treated as a misconfiguration.
+- **The dependencies form a cycle → hard error**, with the cycle path printed so you can see which declarations to break.
+
+The `dryrun` command writes the fully resolved order to its plan file, and appends an informational footer noting any migration that now applies in a different relative order than it did in the target database (based on the recorded apply sequence). That surfaces a folder/file reordering that would be fine on the current database but could fail on a fresh one — a hint to declare a `dependsOn` if the order is actually required.

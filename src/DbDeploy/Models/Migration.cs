@@ -6,6 +6,7 @@ internal sealed record Migration
     public required string FileName { get; init; }
     public required string Title { get; init; }
     public required string[] SqlStatements { get; init; }
+    public string[] DependsOn { get; init; } = [];
     public string? Hash { get; init; }
     public bool RunAlways { get; init; }
     public bool RunOnChange { get; init; }

@@ -13,10 +13,11 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var (migrations, parsingErrors) = extractor.ExtractFromStartingFile(stoppingToken);
+        var appliedHistories = await repo.GetAllMigrationHistories(stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(x => x.FileName)], stoppingToken);
 
-        if (parsingErrors > 0)
-            return Exceptions.MigrationsParsingError(parsingErrors);
+        if (extractionError is not null)
+            return extractionError;
 
         try
         {
@@ -26,7 +27,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
 
             var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
-            foreach (var migration in migrations.Values)
+            foreach (var migration in migrations!.Values)
             {
                 if (migration.IsMissingRequiredContext(contexts))
                 {

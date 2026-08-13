@@ -46,6 +46,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
             FileName = file,
             Title = _header.Title,
             SqlStatements = [.. _sqlStatements],
+            DependsOn = _header.DependsOn ?? [],
             Hash = CalculateHash(_sqlStatements),
             RunAlways = _header.RunAlways ?? false,
             RunOnChange = _header.RunOnChange ?? false,
@@ -76,6 +77,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
     private sealed class MigrationHeader
     {
         public string? Title { get; set; }
+        public string[]? DependsOn { get; set; }
         public bool? RunAlways { get; set; }
         public bool? RunOnChange { get; set; }
         public bool? RunInTransaction { get; set; }
