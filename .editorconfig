@@ -121,3 +121,9 @@ csharp_style_unused_value_assignment_preference = discard_variable:suggestion
 csharp_style_prefer_utf8_string_literals = true:suggestion
 csharp_space_around_binary_operators = before_and_after
 csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
+
+# CA1848: Use the LoggerMessage delegates
+dotnet_diagnostic.CA1848.severity = none
+
+# CA1873: Avoid potentially expensive logging
+dotnet_diagnostic.CA1873.severity = none

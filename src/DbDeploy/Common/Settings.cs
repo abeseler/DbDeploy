@@ -12,5 +12,4 @@ internal sealed class Settings
     public int ConnectionAttempts { get; set; } = 10;
     public int ConnectionRetryDelaySeconds { get; set; } = 5;
     public int LockWaitMaxSeconds { get; set; } = 120;
-    public int ShutdownWaitSeconds { get; set; } = 0;
 }

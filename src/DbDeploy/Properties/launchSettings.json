@@ -1,33 +1,39 @@
 {
   "profiles": {
-    "DB: Update": {
+    "Postgres: Update": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
         "Deploy__StartingFile": "Example.json",
         "Deploy__DatabaseProvider": "postgres",
-        "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=wms;User Id=postgres;Password=postgres",
+        "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=App;User Id=postgres;Password=postgres",
+        "Deploy__ConnectionAttempts": "3",
+        "Deploy__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },
-    "DB: Sync": {
+    "Postgres: Sync": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "sync",
         "Deploy__StartingFile": "Example.json",
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
+        "Deploy__ConnectionAttempts": "3",
+        "Deploy__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },
-    "DB: Status": {
+    "Postgres: Status": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "status",
         "Deploy__StartingFile": "Example.json",
         "Deploy__ConnectionString": "Server=localhost,1433;Database=App;User Id=sa;Password=P@ssw0rd;MultipleActiveResultSets=true",
+        "Deploy__ConnectionAttempts": "3",
+        "Deploy__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },

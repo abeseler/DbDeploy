@@ -1,0 +1,12 @@
+﻿[
+  {
+    "include": [
+      "postgres"
+    ],
+    "contextFilter": [
+      "test"
+    ],
+    "contextRequired": false,
+    "errorIfMissingOrEmpty": true
+  }
+]

@@ -17,7 +17,10 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         logger.LogDebug("Starting file: {StartingFile}", startingFile.FullName);
 
         if (startingFile.Exists is false)
+        {
+            logger.LogCritical("{Error}: {StartingFile}", Exceptions.FileDoesNotExist.Message, startingFile.FullName);
             throw new FileNotFoundException($"Starting file does not exist: {settings.Value.StartingFile}");
+        }
 
         var migrationIncludes = new List<MigrationIncludes>();
         var migrations = new MigrationCollection();

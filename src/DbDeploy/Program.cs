@@ -1,26 +1,31 @@
 ﻿using Dapper;
+using DbDeploy;
 using DbDeploy.FileHandling;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.OpenTelemetry;
 
-var builder = Host.CreateApplicationBuilder();
 
-builder.Logging.ClearProviders();
-builder.Logging.AddSerilog(new LoggerConfiguration()
+var config = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args, Arguments.Mapping)
+    .Build();
+
+Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .WriteTo.Console()
     .WriteTo.OpenTelemetry(options =>
     {
-        options.Endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        options.Endpoint = config["OTEL_EXPORTER_OTLP_ENDPOINT"];
         options.Protocol = OtlpProtocol.HttpProtobuf;
-        var headers = builder.Configuration["OTEL_EXPORTER_OTLP_HEADERS"]?.Split(',') ?? [];
+        var headers = config["OTEL_EXPORTER_OTLP_HEADERS"]?.Split(',') ?? [];
         foreach (var header in headers)
         {
             var (key, value) = header.Split('=') switch
             {
-            [{ } k, { } v] => (k, v),
+                [{ } k, { } v] => (k, v),
                 var v => throw new Exception($"Invalid header format {v}")
             };
 
@@ -28,30 +33,55 @@ builder.Logging.AddSerilog(new LoggerConfiguration()
         }
         options.ResourceAttributes = new Dictionary<string, object>
         {
-            ["service.name"] = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dbdeploy"
+            ["service.name"] = config["OTEL_SERVICE_NAME"] ?? "dbdeploy"
         };
     })
-    .ReadFrom.Configuration(builder.Configuration)
-    .CreateLogger());
+    .ReadFrom.Configuration(config)
+    .CreateLogger();
 
-builder.Logging.AddOpenTelemetry(logging =>
+var services = new ServiceCollection();
+services.AddSingleton<IConfiguration>(config);
+services.AddLogging(b =>
 {
-    logging.IncludeFormattedMessage = true;
-    logging.IncludeScopes = true;
+    b.AddSerilog(dispose: true);
+    b.AddOpenTelemetry(logging =>
+    {
+        logging.IncludeFormattedMessage = true;
+        logging.IncludeScopes = true;
+    });
 });
 
-builder.Configuration.AddCommandLine(args, Arguments.Mapping);
+services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
+services.AddSingleton<App>();
 
-builder.Services.AddHostedService<Worker>();
+services.AddSingleton<FileMigrationExtractor>();
+services.AddSingleton<ICommand, StatusCommand>();
+services.AddSingleton<ICommand, SyncCommand>();
+services.AddSingleton<ICommand, UpdateCommand>();
 
-builder.Services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
-builder.Services.AddSingleton<DbConnector>();
-builder.Services.AddSingleton<Repository>();
-builder.Services.AddSingleton<FileMigrationExtractor>();
-builder.Services.AddSingleton<ICommand, StatusCommand>();
-builder.Services.AddSingleton<ICommand, SyncCommand>();
-builder.Services.AddSingleton<ICommand, UpdateCommand>();
+services.AddSingleton<Repository>();
+services.AddSingleton<IDatabaseProvider>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<Settings>>();
+    var connectionString = options.Value.ConnectionString ?? throw new InvalidOperationException("Connection string is not configured.");
+    return options.Value.DatabaseProvider switch
+    {
+        "postgres" => new PostgresDbProvider(connectionString),
+        "mssql" => new MsSqlDbProvider(connectionString),
+        "sqlite" => new SqliteDbProvider(connectionString),
+        _ => throw new NotSupportedException("Database provider not supported.")
+    };
+});
 
 DefaultTypeMap.MatchNamesWithUnderscores = true;
 
-await builder.Build().RunAsync();
+try
+{
+    using var provider = services.BuildServiceProvider();
+    var app = provider.GetRequiredService<App>();
+    await app.RunAsync();
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
