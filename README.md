@@ -14,12 +14,17 @@ Understanding a few core behaviors will help you use DbDeploy safely:
 
 ### Deployment Lock
 
-DbDeploy acquires a row-based lock (in the `__migration_lock` table) so that only one deployment runs at a time. The lock is released automatically when the run finishes.
+DbDeploy holds a **session-scoped lock** for the duration of a deployment so that only one runs at a time. The lock is tied to the database connection, so it is **released automatically if the process dies** (crash, OOM, cancelled pipeline job) — no manual cleanup is required. Each provider uses its native mechanism:
 
-**If a deployment is force-killed** (e.g. an OOM or a cancelled pipeline job), the lock row may be left open (`finished_on IS NULL`), which will block subsequent deployments until it is cleared manually:
-```sql
-UPDATE __migration_lock SET finished_on = NOW() WHERE finished_on IS NULL;
-```
+- **PostgreSQL**: a session-level advisory lock (`pg_advisory_lock`), scoped to the target database.
+- **MSSQL**: a session-scoped application lock (`sp_getapplock`).
+- **SQLite**: an exclusive lock on the database file.
+
+The `__migration_lock` table is still written as an audit trail (and to allocate a `deployment_id`), but it no longer controls mutual exclusion, so an abandoned `finished_on IS NULL` row from a killed run is harmless.
+
+The lock is acquired only for the database phase of a run — migration files are parsed beforehand, so a large migration set does not hold the lock while parsing.
+
+`--maxLockWait` bounds how long DbDeploy waits for a contended lock. For PostgreSQL and MSSQL this is honored precisely. For SQLite it is best-effort: because the SQLite lock is a file lock that also blocks table setup, a competing deployment waits for the other to finish rather than timing out exactly.
 
 ### Dry Run
 

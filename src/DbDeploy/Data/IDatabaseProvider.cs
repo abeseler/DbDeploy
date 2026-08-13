@@ -1,11 +1,14 @@
 ﻿using System.Data;
 using System.Globalization;
+using Dapper;
 
 namespace DbDeploy.Data;
 
 public interface IDatabaseProvider
 {
     public Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken);
+    public Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken);
+    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken);
     public string EnsureMigrationTablesExist { get; }
     public string AcquireLock { get; }
     public string ReleaseLock { get; }
@@ -23,6 +26,26 @@ internal sealed class PostgresDbProvider(string connectionString) : IDatabasePro
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
+    private const int LockKey = 0x4442_4450;
+    public async Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            var acquired = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                "SELECT pg_try_advisory_lock((SELECT oid::int FROM pg_database WHERE datname = current_database()), @Key)",
+                new { Key = LockKey }, cancellationToken: cancellationToken));
+            if (acquired)
+                return true;
+            if (DateTime.UtcNow >= deadline)
+                return false;
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) =>
+        connection.ExecuteAsync(new CommandDefinition(
+            "SELECT pg_advisory_unlock((SELECT oid::int FROM pg_database WHERE datname = current_database()), @Key)",
+            new { Key = LockKey }, cancellationToken: cancellationToken));
     public string EnsureMigrationTablesExist => """
         CREATE TABLE IF NOT EXISTS __migration_lock (
             deployment_id INT GENERATED ALWAYS AS IDENTITY,
@@ -47,8 +70,7 @@ internal sealed class PostgresDbProvider(string connectionString) : IDatabasePro
         """;
     public string AcquireLock => """
         INSERT INTO __migration_lock (started_on)
-        SELECT NOW() AT TIME ZONE 'utc'
-        WHERE NOT EXISTS (SELECT 1 FROM __migration_lock WHERE finished_on IS NULL)
+        VALUES (NOW() AT TIME ZONE 'utc')
         RETURNING deployment_id, started_on, finished_on;
         """;
     public string ReleaseLock => """
@@ -79,6 +101,25 @@ internal sealed class MsSqlDbProvider(string connectionString) : IDatabaseProvid
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
+    private const string LockResource = "DbDeploy:Deployment";
+    public async Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("@Resource", LockResource);
+        parameters.Add("@LockMode", "Exclusive");
+        parameters.Add("@LockOwner", "Session");
+        parameters.Add("@LockTimeout", (int)timeout.TotalMilliseconds);
+        parameters.Add("@Result", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
+        await connection.ExecuteAsync(new CommandDefinition("sp_getapplock", parameters, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+        return parameters.Get<int>("@Result") >= 0;
+    }
+    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("@Resource", LockResource);
+        parameters.Add("@LockOwner", "Session");
+        return connection.ExecuteAsync(new CommandDefinition("sp_releaseapplock", parameters, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+    }
     public string EnsureMigrationTablesExist => """
         IF OBJECT_ID(N'[__migration_lock]', N'U') IS NULL
         CREATE TABLE [__migration_lock] (
@@ -105,8 +146,7 @@ internal sealed class MsSqlDbProvider(string connectionString) : IDatabaseProvid
     public string AcquireLock => """
         INSERT INTO [__migration_lock] ([started_on])
         OUTPUT inserted.deployment_id, inserted.started_on, inserted.finished_on
-        SELECT GETUTCDATE()
-        WHERE NOT EXISTS (SELECT * FROM [__migration_lock] WHERE finished_on IS NULL);
+        VALUES (GETUTCDATE());
         """;
     public string ReleaseLock => """
         UPDATE [__migration_lock]
@@ -147,6 +187,26 @@ internal sealed class SqliteDbProvider : IDatabaseProvider
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
+    // EXCLUSIVE locking mode makes the connection retain the file lock across transactions until it closes,
+    // giving session-scoped exclusion that is released automatically if the process dies. The command timeout
+    // drives Microsoft.Data.Sqlite's built-in busy retry, which serves as the wait for a contended lock.
+    public async Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync("PRAGMA locking_mode=EXCLUSIVE;");
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                "BEGIN EXCLUSIVE; COMMIT;",
+                commandTimeout: Math.Max(1, (int)timeout.TotalSeconds),
+                cancellationToken: cancellationToken));
+            return true;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode is 5 or 6)
+        {
+            return false;
+        }
+    }
+    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) => Task.CompletedTask;
     public string EnsureMigrationTablesExist => """
         CREATE TABLE IF NOT EXISTS __migration_lock (
             deployment_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -169,8 +229,7 @@ internal sealed class SqliteDbProvider : IDatabaseProvider
         """;
     public string AcquireLock => """
         INSERT INTO __migration_lock (started_on)
-        SELECT strftime('%Y-%m-%d %H:%M:%f', 'now') || '+00:00'
-        WHERE NOT EXISTS (SELECT 1 FROM __migration_lock WHERE finished_on IS NULL)
+        VALUES (strftime('%Y-%m-%d %H:%M:%f', 'now') || '+00:00')
         RETURNING deployment_id, started_on, finished_on;
         """;
     public string ReleaseLock => """

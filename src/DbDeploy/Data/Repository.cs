@@ -1,12 +1,17 @@
-﻿using Dapper;
+﻿using System.Data;
+using Dapper;
 
 namespace DbDeploy.Data;
 
 internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repository> logger)
 {
     private MigrationLock? _migrationLock;
+    private IDbConnection? _lockConnection;
     public int MigrationsApplied { get; private set; } = 0;
     public int MigrationsSynced { get; private set; } = 0;
+
+    private async Task<(IDbConnection Connection, bool Dispose)> Lease(CancellationToken stoppingToken) =>
+        _lockConnection is { } held ? (held, false) : (await dbProvider.ConnectAsync(stoppingToken), true);
 
     public async Task EnsureMigrationTablesExist(CancellationToken stoppingToken = default)
     {
@@ -16,44 +21,48 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
 
     public async Task<bool> AcquireLock(TimeSpan maxWaitDuration, CancellationToken stoppingToken = default)
     {
-        var waitUntil = DateTime.UtcNow.Add(maxWaitDuration);
-        while (DateTime.UtcNow < waitUntil)
+        var connection = await dbProvider.ConnectAsync(stoppingToken);
+        if (await dbProvider.TryAcquireSessionLock(connection, maxWaitDuration, stoppingToken) is false)
         {
-            stoppingToken.ThrowIfCancellationRequested();
-            {
-                using var connection = await dbProvider.ConnectAsync(stoppingToken);
-                _migrationLock = await connection.QuerySingleOrDefaultAsync<MigrationLock>(dbProvider.AcquireLock);
-            }
-            if (_migrationLock is not null)
-            {
-                logger.LogInformation("Lock acquired. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
-                break;
-            }
-
-            logger.LogWarning("Failed to acquire lock. Will retry for another {AcquireLockWait} seconds", Math.Ceiling((waitUntil - DateTime.UtcNow).TotalSeconds));
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            logger.LogWarning("Failed to acquire lock within {MaxWaitSeconds} seconds", Math.Ceiling(maxWaitDuration.TotalSeconds));
+            connection.Dispose();
+            return false;
         }
 
-        return _migrationLock is not null;
+        _lockConnection = connection;
+        _migrationLock = await connection.QuerySingleAsync<MigrationLock>(dbProvider.AcquireLock);
+        logger.LogInformation("Lock acquired. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
+        return true;
     }
 
     public async Task ReleaseLock(CancellationToken stoppingToken = default)
     {
-        if (_migrationLock is null) return;
+        if (_lockConnection is null) return;
 
-        using var connection = await dbProvider.ConnectAsync(stoppingToken);
-        await connection.ExecuteAsync(dbProvider.ReleaseLock, _migrationLock);
+        if (_migrationLock is not null)
+        {
+            await _lockConnection.ExecuteAsync(dbProvider.ReleaseLock, _migrationLock);
+            logger.LogDebug("Lock released. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
+        }
 
-        logger.LogDebug("Lock released. DeploymentId: {DeploymentId}", _migrationLock.DeploymentId);
+        await dbProvider.ReleaseSessionLock(_lockConnection, stoppingToken);
+        _lockConnection.Dispose();
+        _lockConnection = null;
         _migrationLock = null;
     }
 
     public async Task<Dictionary<string, MigrationHistory>> GetAllMigrationHistories(CancellationToken stoppingToken = default)
     {
-        using var connection = await dbProvider.ConnectAsync(stoppingToken);
-        var migrationHistories = await connection.QueryAsync<MigrationHistory>(dbProvider.GetAllMigrationHistories);
-
-        return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
+        var (connection, dispose) = await Lease(stoppingToken);
+        try
+        {
+            var migrationHistories = await connection.QueryAsync<MigrationHistory>(dbProvider.GetAllMigrationHistories);
+            return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
+        }
+        finally
+        {
+            if (dispose) connection.Dispose();
+        }
     }
 
     public async Task<Result<Success>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
@@ -70,8 +79,8 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         migrationHistory.ExecutedSequence = MigrationsApplied + 1;
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
-        using var connection = await dbProvider.ConnectAsync(stoppingToken);
-        using var transaction = migration.RunInTransaction ? connection.BeginTransaction() : null;
+        var (connection, dispose) = await Lease(stoppingToken);
+        var transaction = migration.RunInTransaction ? connection.BeginTransaction() : null;
         try
         {
             foreach (var sql in migration.SqlStatements!)
@@ -101,6 +110,11 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
 
             return migration.OnError == Migration.ErrorHandling.Fail ? new Exception(ex.Message) : Success.Default;
         }
+        finally
+        {
+            transaction?.Dispose();
+            if (dispose) connection.Dispose();
+        }
     }
 
     public async Task SyncMigrationHistory(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
@@ -116,9 +130,15 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         migrationHistory.ExecutedSequence = null;
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
-        using var connection = await dbProvider.ConnectAsync(stoppingToken);
-        await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory);
-
-        MigrationsSynced++;
+        var (connection, dispose) = await Lease(stoppingToken);
+        try
+        {
+            await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory);
+            MigrationsSynced++;
+        }
+        finally
+        {
+            if (dispose) connection.Dispose();
+        }
     }
 }
