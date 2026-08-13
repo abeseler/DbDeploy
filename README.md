@@ -3,6 +3,22 @@
 This is a simple database migration tool that can be used to manage database schema changes.
 It currently supports PostgreSQL, MSSQL and SQLite.
 
+## Quick Start
+
+DbDeploy runs as a one-shot container: point it at a directory of SQL migrations, give it a connection string, and run a command. A typical CI/CD step pulls the image, mounts your migrations to `/app/Migrations`, and runs `update`:
+
+```bash
+docker run --rm \
+  -v ./migrations:/app/Migrations \
+  -e Deploy__Command=update \
+  -e Deploy__StartingFile=starting.json \
+  -e Deploy__DatabaseProvider=postgres \
+  -e Deploy__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
+  abeseler/dbdeploy
+```
+
+See [Configuration](#configuration) for all options.
+
 ## Design & Philosophy
 
 DbDeploy grew out of experience with Flyway and Liquibase, keeping the parts that worked and dropping the parts that added friction. A few principles shape it:
@@ -17,15 +33,26 @@ DbDeploy grew out of experience with Flyway and Liquibase, keeping the parts tha
 
 - **DbDeploy does not parse or validate your SQL.** It only parses the two things it must: the JSON migration header and the statement separators. Everything else is handed to the database, which is the authority on whether the SQL is valid. The tool's job is to *try to apply* your SQL in a known order and record what succeeded — not to understand it.
 
-- **Ordering is by convention, not by parsing.** Because the tool doesn't understand your SQL, it can't infer dependencies. Execution order comes from the starting file's include order and alphabetical order within a folder. In practice this means either naming files to guarantee order (the single-folder approach) or grouping by dependency (for example, a separate folder for foreign keys applied after all tables exist, or a `Views2` folder for views that reference other views).
+- **Roll-forward only — on purpose.** Rollback scripts are often sold as a safety net, but that safety is partly an illusion. A rollback restores *structure*, not *data*: drop a column and the "undo" can add the column back, but the values are gone. Rollback SQL can also fail exactly like forward SQL — a bug, a lock, a timeout — and, because DbDeploy doesn't parse SQL, a "down" script is no more verifiable than any other migration. An automated rollback would therefore imply a guarantee that doesn't actually exist. When a deployment goes sideways, the right response is human judgment, not a canned reverse script: sometimes it's a syntax error you fix in the migration and re-apply; sometimes an expert has to look at the failure and decide — hand-edit the database into a good state, or write new migrations that correct forward. There is no single guaranteed answer, so DbDeploy doesn't pretend to offer one.
+
+- **Ordering is by convention first, with explicit overrides.** Because the tool doesn't understand your SQL, it can't *infer* dependencies. The default order comes from the starting file's include order and alphabetical order within a folder — so you group by dependency (for example, a separate folder for foreign keys applied after all tables exist, or a `Views2` folder for views that reference other views). When convention isn't enough, a migration can declare an explicit `dependsOn` (see [Dependencies](#dependencies)). That stays true to the no-parse philosophy: `dependsOn` is ordering *metadata* you declare, not something inferred from the SQL.
+
+## Commands
+
+DbDeploy runs a single command per invocation, selected with `--command` (or `Deploy__Command`):
+
+- **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command.
+- **`status`** — Report how many migrations are pending, already applied, would be synced, or filtered out by context. Read-only; applies nothing and takes no lock.
+- **`sync`** — Record migrations as **already applied without running their SQL**. Use this to baseline a database whose schema already exists (for example, when adopting DbDeploy on an established database) so those migrations are not re-run on the next `update`.
+- **`dryrun`** — Like `status`, but also writes the exact SQL that `update` would run to a plan file for review. Applies nothing and takes no lock. See [Dry Run](#dry-run).
 
 ## Deployment Semantics
 
 Understanding a few core behaviors will help you use DbDeploy safely:
 
-- **Roll-forward only.** DbDeploy has no concept of "down" or rollback migrations. Recovery from a bad migration is always done by writing a new migration that corrects the problem. Design your changes accordingly.
+- **Roll-forward only.** DbDeploy has no concept of a "down" or rollback migration. Recovery from a bad change is a human decision — fix the migration and re-apply, correct forward with a new migration, or have someone resolve the database state directly — rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) for the reasoning.
 - **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration.
-- **Write idempotent, defensive SQL.** Because there is no rollback and each migration commits independently, migrations should be written so a partially-completed deployment can be safely re-run — e.g. `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, guarded inserts, etc.
+- **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
 - **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes the deployment to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check.
 
 ### Deployment Lock
@@ -122,7 +149,7 @@ The following properties are available:
 
 Migrations are executed in the order they are included in the starting file. If a directory is included, the files are executed in alphabetical order.
 
-DbDeploy is not opinionated about how you organize your migrations. However, generally I prefer to have 1 folder per type of object (Tables, Views, Stored Procedures, etc.) and then 1 file per object. This makes it easier to manage and track changes. Then just include your folders by dependency order in the starting file (for example, Views require Tables to exist, so apply Table migrations before Views).
+As described in [Design & Philosophy](#design--philosophy), the layout I recommend is one folder per object type (Tables, Views, Stored Procedures, etc.) and one file per object, with folders included in dependency order (for example, apply Tables before Views).
 
 ## Migrations
 
@@ -141,7 +168,7 @@ The following is an example of a migration file:
 CREATE TABLE IF NOT EXISTS widget (
     widget_id INT GENERATED ALWAYS AS IDENTITY,
     description TEXT NOT NULL,
-    created_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+    created_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     CONSTRAINT pk_widget PRIMARY KEY (widget_id)
 );
 
@@ -172,7 +199,7 @@ The following properties are available:
 The `runAlways` property is useful for migrations that need to be run every time the database is updated. For example, if you need to update a lookup table with new values, you would set `runAlways` to `true`.
 The `runOnChange` property is useful for migrations that need to be run when the migration changes. For example, if you need to update a view or stored procedure, you would set `runOnChange` to `true`.
 
-Again, DbDeploy is not opinionated about how you organize your migrations. However, because of the way files can contain multiple migrations, having 1 file per object means you get all the history of that object in 1 place.
+Again, because a file can contain multiple migrations, keeping one file per object means the full change history of that object lives in one place.
 
 ## Dependencies
 
@@ -212,3 +239,13 @@ DbDeploy does not track deleted migrations, and `dependsOn` is designed to stay 
 - **The dependencies form a cycle → hard error**, with the cycle path printed so you can see which declarations to break.
 
 The `dryrun` command writes the fully resolved order to its plan file, and appends an informational footer noting any migration that now applies in a different relative order than it did in the target database (based on the recorded apply sequence). That surfaces a folder/file reordering that would be fine on the current database but could fail on a fresh one — a hint to declare a `dependsOn` if the order is actually required.
+
+## Known Limitations
+
+These are deliberate tradeoffs, called out here so they are not surprises:
+
+- **No rollback.** DbDeploy is roll-forward only — recovery is a deliberate human decision rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) and [Deployment Semantics](#deployment-semantics).
+- **Atomicity is per migration, not per deployment.** A failure part-way through leaves earlier migrations applied; re-running resumes from the first unapplied migration rather than restarting the whole deployment. See [Deployment Semantics](#deployment-semantics).
+- **Statement splitting is textual.** Statements are separated by lines beginning with `--NewStatement`. Because DbDeploy does not parse SQL, a line that begins with that token inside a string literal or comment would split incorrectly. Keep the separator on its own dedicated line.
+- **Hashing is for change detection, not security.** Applied migrations are fingerprinted with MD5 to detect edits after they were applied; it is not a cryptographic guarantee.
+- **Three databases.** Only PostgreSQL, MSSQL and SQLite are supported.
