@@ -23,10 +23,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup .NET9
+      - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '9.x'
+          dotnet-version: '10.x'
   
       - name: Test
         run: dotnet test --logger "trx;LogFileName=test-results.trx" || true
