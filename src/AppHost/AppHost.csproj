@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DbDeploy\DbDeploy.csproj" />
+    <ProjectReference Include="..\Ratchet\Ratchet.csproj" />
   </ItemGroup>
 
 </Project>

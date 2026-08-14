@@ -1,11 +1,11 @@
-# DbDeploy
+# Ratchet
 
 This is a simple database migration tool that can be used to manage database schema changes.
 It currently supports PostgreSQL, MSSQL and SQLite.
 
 ## Quick Start
 
-DbDeploy runs as a one-shot container: point it at a directory of SQL migrations, give it a connection string, and run a command. A typical CI/CD step pulls the image, mounts your migrations to `/app/Migrations`, and runs `update`:
+Ratchet runs as a one-shot container: point it at a directory of SQL migrations, give it a connection string, and run a command. A typical CI/CD step pulls the image, mounts your migrations to `/app/Migrations`, and runs `update`:
 
 ```bash
 docker run --rm \
@@ -14,50 +14,50 @@ docker run --rm \
   -e Deploy__StartingFile=starting.json \
   -e Deploy__DatabaseProvider=postgres \
   -e Deploy__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
-  abeseler/dbdeploy
+  abeseler/ratchet
 ```
 
 See [Configuration](#configuration) for all options.
 
 ## Design & Philosophy
 
-DbDeploy grew out of experience with Flyway and Liquibase, keeping the parts that worked and dropping the parts that added friction. A few principles shape it:
+Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that worked and dropping the parts that added friction. A few principles shape it:
 
-- **The tool is not opinionated about structure — but it was designed for one file per object.** DbDeploy just applies the files your starting file points to, in order. You can use it the Flyway way: one `Migrations` folder full of versioned files whose names guarantee ordering. But it was built to also support a different model that I prefer — point it at your existing *object folders* (Tables, Views, Stored Procedures) and let those files *be* the migrations.
+- **The tool is not opinionated about structure — but it was designed for one file per object.** Ratchet just applies the files your starting file points to, in order. You can use it the Flyway way: one `Migrations` folder full of versioned files whose names guarantee ordering. But it was built to also support a different model that I prefer — point it at your existing *object folders* (Tables, Views, Stored Procedures) and let those files *be* the migrations.
 
-- **Your object folders can *be* your migrations.** A common pattern is to keep a folder of object definitions *and* a separate folder of migration/rollback scripts that duplicate those changes — two representations of the same change kept in sync by hand. DbDeploy makes the second folder optional: point it at your object folders and the files in them are the migrations. One source of truth.
+- **Your object folders can *be* your migrations.** A common pattern is to keep a folder of object definitions *and* a separate folder of migration/rollback scripts that duplicate those changes — two representations of the same change kept in sync by hand. Ratchet makes the second folder optional: point it at your object folders and the files in them are the migrations. One source of truth.
 
 - **One file per object, accumulating its history.** Because a file can hold multiple migration blocks, an object's whole change history can live in one place. This makes the model a hybrid:
   - *Tables* are typically **delta-based** — the file accumulates blocks (`create`, then `addColumn`, then `addColumn`), so the file is the object's history, not a snapshot of its current shape.
   - *Views, procedures and functions* are typically **state-based** — a single block with `runOnChange: true` that is re-applied whenever its SQL changes.
 
-- **DbDeploy does not parse or validate your SQL.** It only parses the two things it must: the JSON migration header and the statement separators. Everything else is handed to the database, which is the authority on whether the SQL is valid. The tool's job is to *try to apply* your SQL in a known order and record what succeeded — not to understand it.
+- **Ratchet does not parse or validate your SQL.** It only parses the two things it must: the JSON migration header and the statement separators. Everything else is handed to the database, which is the authority on whether the SQL is valid. The tool's job is to *try to apply* your SQL in a known order and record what succeeded — not to understand it.
 
-- **Roll-forward only — on purpose.** Rollback scripts are often sold as a safety net, but that safety is partly an illusion. A rollback restores *structure*, not *data*: drop a column and the "undo" can add the column back, but the values are gone. Rollback SQL can also fail exactly like forward SQL — a bug, a lock, a timeout — and, because DbDeploy doesn't parse SQL, a "down" script is no more verifiable than any other migration. An automated rollback would therefore imply a guarantee that doesn't actually exist. When a deployment goes sideways, the right response is human judgment, not a canned reverse script: sometimes it's a syntax error you fix in the migration and re-apply; sometimes an expert has to look at the failure and decide — hand-edit the database into a good state, or write new migrations that correct forward. There is no single guaranteed answer, so DbDeploy doesn't pretend to offer one.
+- **Roll-forward only — on purpose.** Rollback scripts are often sold as a safety net, but that safety is partly an illusion. A rollback restores *structure*, not *data*: drop a column and the "undo" can add the column back, but the values are gone. Rollback SQL can also fail exactly like forward SQL — a bug, a lock, a timeout — and, because Ratchet doesn't parse SQL, a "down" script is no more verifiable than any other migration. An automated rollback would therefore imply a guarantee that doesn't actually exist. When a deployment goes sideways, the right response is human judgment, not a canned reverse script: sometimes it's a syntax error you fix in the migration and re-apply; sometimes an expert has to look at the failure and decide — hand-edit the database into a good state, or write new migrations that correct forward. There is no single guaranteed answer, so Ratchet doesn't pretend to offer one.
 
 - **Ordering is by convention first, with explicit overrides.** Because the tool doesn't understand your SQL, it can't *infer* dependencies. The default order comes from the starting file's include order and alphabetical order within a folder — so you group by dependency (for example, a separate folder for foreign keys applied after all tables exist, or a `Views2` folder for views that reference other views). When convention isn't enough, a migration can declare an explicit `dependsOn` (see [Dependencies](#dependencies)). That stays true to the no-parse philosophy: `dependsOn` is ordering *metadata* you declare, not something inferred from the SQL.
 
 ## Commands
 
-DbDeploy runs a single command per invocation, selected with `--command` (or `Deploy__Command`):
+Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`):
 
 - **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command.
 - **`status`** — Report how many migrations are pending, already applied, would be synced, or filtered out by context. Read-only; applies nothing and takes no lock.
-- **`sync`** — Record migrations as **already applied without running their SQL**. Use this to baseline a database whose schema already exists (for example, when adopting DbDeploy on an established database) so those migrations are not re-run on the next `update`.
+- **`sync`** — Record migrations as **already applied without running their SQL**. Use this to baseline a database whose schema already exists (for example, when adopting Ratchet on an established database) so those migrations are not re-run on the next `update`.
 - **`dryrun`** — Like `status`, but also writes the exact SQL that `update` would run to a plan file for review. Applies nothing and takes no lock. See [Dry Run](#dry-run).
 
 ## Deployment Semantics
 
-Understanding a few core behaviors will help you use DbDeploy safely:
+Understanding a few core behaviors will help you use Ratchet safely:
 
-- **Roll-forward only.** DbDeploy has no concept of a "down" or rollback migration. Recovery from a bad change is a human decision — fix the migration and re-apply, correct forward with a new migration, or have someone resolve the database state directly — rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) for the reasoning.
+- **Roll-forward only.** Ratchet has no concept of a "down" or rollback migration. Recovery from a bad change is a human decision — fix the migration and re-apply, correct forward with a new migration, or have someone resolve the database state directly — rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) for the reasoning.
 - **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration.
 - **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
 - **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes the deployment to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check.
 
 ### Deployment Lock
 
-DbDeploy holds a **session-scoped lock** for the duration of a deployment so that only one runs at a time. The lock is tied to the database connection, so it is **released automatically if the process dies** (crash, OOM, cancelled pipeline job) — no manual cleanup is required. Each provider uses its native mechanism:
+Ratchet holds a **session-scoped lock** for the duration of a deployment so that only one runs at a time. The lock is tied to the database connection, so it is **released automatically if the process dies** (crash, OOM, cancelled pipeline job) — no manual cleanup is required. Each provider uses its native mechanism:
 
 - **PostgreSQL**: a session-level advisory lock (`pg_advisory_lock`), scoped to the target database.
 - **MSSQL**: a session-scoped application lock (`sp_getapplock`).
@@ -67,11 +67,11 @@ The `__migration_lock` table is still written as an audit trail (and to allocate
 
 The lock is acquired only for the database phase of a run — migration files are parsed beforehand, so a large migration set does not hold the lock while parsing.
 
-`--maxLockWait` bounds how long DbDeploy waits for a contended lock. For PostgreSQL and MSSQL this is honored precisely. For SQLite it is best-effort: because the SQLite lock is a file lock that also blocks table setup, a competing deployment waits for the other to finish rather than timing out exactly.
+`--maxLockWait` bounds how long Ratchet waits for a contended lock. For PostgreSQL and MSSQL this is honored precisely. For SQLite it is best-effort: because the SQLite lock is a file lock that also blocks table setup, a competing deployment waits for the other to finish rather than timing out exactly.
 
 ### Dry Run
 
-The `dryrun` command reports the same pending/applied/synced/filtered counts as `status`, but also writes the SQL that *would* be applied to a plan file (`--outputFile`, default `dbdeploy-plan.sql`). It does not acquire the deployment lock and applies nothing.
+The `dryrun` command reports the same pending/applied/synced/filtered counts as `status`, but also writes the SQL that *would* be applied to a plan file (`--outputFile`, default `ratchet-plan.sql`). It does not acquire the deployment lock and applies nothing.
 
 This is useful as a review/approval gate in a pipeline: generate the plan, publish it as an artifact for a human to review, then run `update` once approved.
 
@@ -89,14 +89,14 @@ The configuration can be done via command line arguments. The following argument
 - `--connectionString`: The connection string to use.
 - `--connectionAttempts`: The number of initial connection attempts. Default is 10.
 - `--connectionRetryDelay`: The delay between connection attempts in seconds. Default is 5 seconds.
-- `--outputFile`: The file the `dryrun` command writes the migration plan to. Default is `dbdeploy-plan.sql`.
+- `--outputFile`: The file the `dryrun` command writes the migration plan to. Default is `ratchet-plan.sql`.
 - `--logLevel`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 The root directory is `/Migrations`. This is the parent directory of the starting file and all the files that are included.
 
 ### Running the Container
 
-The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/dbdeploy).
+The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/ratchet).
 
 You can use the command line arguments above or the following environment variables for configuration:
 
@@ -108,7 +108,7 @@ You can use the command line arguments above or the following environment variab
 - `Deploy__ConnectionString`: The connection string to use.
 - `Deploy__ConnectionAttempts`: The number of initial connection attempts. Default is 10.
 - `Deploy__ConnectionRetryDelaySeconds`: The delay between connection attempts in seconds. Default is 5 seconds.
-- `Deploy__OutputFile`: The file the `dryrun` command writes the migration plan to. Default is `dbdeploy-plan.sql`.
+- `Deploy__OutputFile`: The file the `dryrun` command writes the migration plan to. Default is `ratchet-plan.sql`.
 - `Serilog__MinimumLevel__Default`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
 To mount your migrations, you can mount a volume to `/app/Migrations`.
@@ -225,11 +225,11 @@ Behavior and rationale:
 - **Paths are normalized for you.** Separators (`\` or `/`) and a leading slash don't matter, and matching is case-insensitive — so you don't have to mirror the tool's internal path format.
 - **Validation is fail-fast, before any SQL runs.** The deployment stops with a clear error if a reference is invalid (see edge cases below) or forms a dependency cycle (the cycle path is printed).
 
-Because DbDeploy does not parse your SQL, it cannot infer dependencies — `dependsOn` is pure ordering metadata that you opt into where it matters.
+Because Ratchet does not parse your SQL, it cannot infer dependencies — `dependsOn` is pure ordering metadata that you opt into where it matters.
 
 ### Dependency edge cases
 
-DbDeploy does not track deleted migrations, and `dependsOn` is designed to stay consistent with that:
+Ratchet does not track deleted migrations, and `dependsOn` is designed to stay consistent with that:
 
 - **The referenced file exists → it is ordered before the dependent.** Removing a file that nothing references simply changes the order of what remains; because already-applied migrations are skipped regardless of position, this is safe and produces no error.
 - **The referenced file is missing but was already applied → the reference is treated as satisfied.** You can delete an old migration file even if something still declares `dependsOn` on it; since it already ran, the ordering constraint is already met and no error is raised.
@@ -244,8 +244,8 @@ The `dryrun` command writes the fully resolved order to its plan file, and appen
 
 These are deliberate tradeoffs, called out here so they are not surprises:
 
-- **No rollback.** DbDeploy is roll-forward only — recovery is a deliberate human decision rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) and [Deployment Semantics](#deployment-semantics).
+- **No rollback.** Ratchet is roll-forward only — recovery is a deliberate human decision rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) and [Deployment Semantics](#deployment-semantics).
 - **Atomicity is per migration, not per deployment.** A failure part-way through leaves earlier migrations applied; re-running resumes from the first unapplied migration rather than restarting the whole deployment. See [Deployment Semantics](#deployment-semantics).
-- **Statement splitting is textual.** Statements are separated by lines beginning with `--NewStatement`. Because DbDeploy does not parse SQL, a line that begins with that token inside a string literal or comment would split incorrectly. Keep the separator on its own dedicated line.
+- **Statement splitting is textual.** Statements are separated by lines beginning with `--NewStatement`. Because Ratchet does not parse SQL, a line that begins with that token inside a string literal or comment would split incorrectly. Keep the separator on its own dedicated line.
 - **Hashing is for change detection, not security.** Applied migrations are fingerprinted with MD5 to detect edits after they were applied; it is not a cryptographic guarantee.
 - **Three databases.** Only PostgreSQL, MSSQL and SQLite are supported.

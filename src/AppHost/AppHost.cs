@@ -8,7 +8,7 @@ var postgresDb = postgres.AddDatabase("pgdn", "app");
 var mssql = builder.AddSqlServer("mssql");
 var mssqlDb = mssql.AddDatabase("mssqldb", "app");
 
-builder.AddProject<DbDeploy>("deploy-postgres")
+builder.AddProject<Ratchet>("deploy-postgres")
     .WithEnvironment("Deploy__Command", "update")
     .WithEnvironment("Deploy__StartingFile", "migrations_postgres.json")
     .WithEnvironment("Deploy__DatabaseProvider", "postgres")
@@ -19,7 +19,7 @@ builder.AddProject<DbDeploy>("deploy-postgres")
     .WithParentRelationship(postgresDb)
     .WithExplicitStart();
 
-builder.AddProject<DbDeploy>("deploy-mssql")
+builder.AddProject<Ratchet>("deploy-mssql")
     .WithEnvironment("Deploy__Command", "update")
     .WithEnvironment("Deploy__StartingFile", "migrations_mssql.json")
     .WithEnvironment("Deploy__DatabaseProvider", "mssql")

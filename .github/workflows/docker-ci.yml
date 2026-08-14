@@ -17,7 +17,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: abeseler/dbdeploy
+          images: abeseler/ratchet
           tags: |
             type=semver,pattern={{version}}            
             type=semver,pattern={{major}}.{{minor}}
@@ -32,7 +32,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./src/DbDeploy/Dockerfile
+          file: ./src/Ratchet/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

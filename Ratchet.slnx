@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="src/AppHost/AppHost.csproj" />
+  <Project Path="src/Ratchet/Ratchet.csproj" />
+  <Project Path="tests/Ratchet.Tests/Ratchet.Tests.csproj" />
+</Solution>

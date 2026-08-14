@@ -1,0 +1,11 @@
+global using Ratchet.Commands;
+global using Ratchet.Common;
+global using Ratchet.Data;
+global using Ratchet.Models;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Options;
+global using System.Diagnostics;
+global using System.Text;
+global using System.Text.Json;
