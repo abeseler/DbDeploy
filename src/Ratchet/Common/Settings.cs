@@ -9,6 +9,8 @@ internal sealed class Settings
     public string WorkingDirectory { get; set; } = DefaultWorkingDirectory;
     public string StartingFile { get; set; } = DefaultStartingFile;
     public string? Contexts { get; set; }
+    public string[] ParseContexts() =>
+        Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
     public string? DatabaseProvider { get; set; }
     public string? ConnectionString { get; set; }
     public int ConnectionAttempts { get; set; } = 10;

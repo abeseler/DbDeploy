@@ -11,41 +11,18 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
+        var histories = await repo.GetAllMigrationHistories(stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. histories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
 
         if (extractionError is not null)
             return extractionError;
 
-        var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
-        var plan = new List<Migration>();
-        var resolvedInContext = new List<Migration>();
-        var migrationsToSync = 0;
-        var migrationsFilteredOut = 0;
-
-        foreach (var migration in migrations!.Values)
-        {
-            if (migration.IsMissingRequiredContext(contexts))
-            {
-                migrationsFilteredOut++;
-                continue;
-            }
-            resolvedInContext.Add(migration);
-            if (migrationHistories.TryGetValue(migration.Id, out var migrationHistory) && migrationHistory is { Hash: null })
-            {
-                migrationsToSync++;
-                continue;
-            }
-
-            if (migration.HasInvalidChange(migrationHistory))
-                logger.LogWarning("Validation error: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
-
-            if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory.Hash != migration.Hash))
-                plan.Add(migration);
-        }
+        var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
+        foreach (var migration in plan.InvalidChanges)
+            logger.LogWarning("Validation error: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
         var outputPath = ResolveOutputPath();
-        await WritePlan(outputPath, plan, resolvedInContext, migrationHistories, stoppingToken);
+        await WritePlan(outputPath, plan, stoppingToken);
 
         logger.LogInformation("""
             Deployment Results:
@@ -57,7 +34,7 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
 
                 Plan written to     =  {OutputFile}
 
-            """, plan.Count, migrationHistories.Count, migrationsToSync, migrationsFilteredOut, outputPath);
+            """, plan.ToApply.Count, plan.HistoryCount, plan.ToSync.Count, plan.FilteredOut.Count, outputPath);
 
         return Success.Default;
     }
@@ -68,7 +45,7 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         return Path.GetFullPath(file, AppDomain.CurrentDomain.BaseDirectory);
     }
 
-    private async Task WritePlan(string path, IReadOnlyList<Migration> plan, IReadOnlyList<Migration> resolvedInContext, IReadOnlyDictionary<string, MigrationHistory> histories, CancellationToken stoppingToken)
+    private async Task WritePlan(string path, DeploymentPlan plan, CancellationToken stoppingToken)
     {
         var directory = Path.GetDirectoryName(path);
         if (string.IsNullOrEmpty(directory) is false)
@@ -77,16 +54,16 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         await using var writer = new StreamWriter(path, append: false);
         await writer.WriteLineAsync($"-- Ratchet plan generated {DateTimeOffset.UtcNow:u}");
         await writer.WriteLineAsync($"-- Provider: {settings.Value.DatabaseProvider}");
-        await writer.WriteLineAsync($"-- Migrations to apply: {plan.Count}");
+        await writer.WriteLineAsync($"-- Migrations to apply: {plan.ToApply.Count}");
         await writer.WriteLineAsync();
 
-        foreach (var migration in plan)
+        foreach (var (migration, _) in plan.ToApply)
         {
             stoppingToken.ThrowIfCancellationRequested();
             await WriteMigration(writer, migration);
         }
 
-        await WriteReorderFooter(writer, resolvedInContext, histories);
+        await WriteReorderFooter(writer, plan.Resolved, plan.Histories);
     }
 
     // Compares the resolved relative order of already-applied migrations against the order they

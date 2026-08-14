@@ -25,7 +25,7 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
 
             var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
 
-            var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
+            var contexts = settings.Value.ParseContexts();
             foreach (var migration in migrations!.Values)
             {
                 if (migration.IsMissingRequiredContext(contexts))

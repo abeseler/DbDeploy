@@ -5,9 +5,6 @@ namespace Ratchet.Commands;
 internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<UpdateCommand> logger) : ICommand
 {
     public string Name => "update";
-    private readonly List<(Migration, MigrationHistory?)> MigrationsToSync = [];
-    private readonly List<(Migration, MigrationHistory?)> MigrationsToApply = [];
-    private int MigrationsFilteredOut = 0;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {
@@ -24,32 +21,13 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.LockWaitMaxSeconds), stoppingToken) is false)
                 return Exceptions.FailedToAcquireLock;
 
-            var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
+            var histories = await repo.GetAllMigrationHistories(stoppingToken);
+            var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
 
-            var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
-            foreach (var migration in migrations!.Values)
-            {
-                if (migration.IsMissingRequiredContext(contexts))
-                {
-                    MigrationsFilteredOut++;
-                    continue;
-                }
-                if (migrationHistories.TryGetValue(migration.Id, out var migrationHistory) && migrationHistory is { Hash: null })
-                {
-                    MigrationsToSync.Add((migration, migrationHistory));
-                    continue;
-                }
+            if (plan.InvalidChanges is [{ } invalid, ..])
+                return Exceptions.MigrationHasInvalidChange(invalid.Id);
 
-                if (migration.HasInvalidChange(migrationHistory))
-                    return Exceptions.MigrationHasInvalidChange(migration.Id);
-
-                if (migrationHistory is null || migration.RunAlways || (migration.RunOnChange && migrationHistory.Hash != migration.Hash))
-                {
-                    MigrationsToApply.Add((migration, migrationHistory));
-                }
-            }
-
-            var result = await ExecuteMigrations(stoppingToken);
+            var result = await ExecutePlan(plan, stoppingToken);
             if (result.Succeeded)
                 logger.LogInformation("""
                     Deployment Results:
@@ -61,7 +39,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                       Marked              =  {Marked}
                       Filtered out        =  {FilteredOut}
 
-                    """, repo.MigrationsApplied, migrationHistories.Count, repo.MigrationsSynced, repo.MigrationsSkipped, repo.MigrationsMarked, MigrationsFilteredOut);
+                    """, repo.MigrationsApplied, plan.HistoryCount, repo.MigrationsSynced, repo.MigrationsSkipped, repo.MigrationsMarked, plan.FilteredOut.Count);
 
             return result;
         }
@@ -71,9 +49,9 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
         }
     }
 
-    public async Task<Result<Success>> ExecuteMigrations(CancellationToken stoppingToken = default)
+    private async Task<Result<Success>> ExecutePlan(DeploymentPlan plan, CancellationToken stoppingToken)
     {
-        foreach (var (migration, history) in MigrationsToSync)
+        foreach (var (migration, history) in plan.ToSync)
         {
             stoppingToken.ThrowIfCancellationRequested();
             logger.LogInformation("Syncing migration: {MigrationId}", migration.Id);
@@ -81,7 +59,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
         }
 
         var migrationsProcessed = 0;
-        foreach (var (migration, history) in MigrationsToApply)
+        foreach (var (migration, history) in plan.ToApply)
         {
             stoppingToken.ThrowIfCancellationRequested();
             logger.LogInformation("Applying migration: {MigrationId}", migration.Id);
@@ -91,7 +69,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                 onFailure: error => false);
 
             if (continueToNextMigration is false)
-                return Exceptions.DeploymentFailed(MigrationsToApply.Count - migrationsProcessed);
+                return Exceptions.DeploymentFailed(plan.ToApply.Count - migrationsProcessed);
 
             migrationsProcessed++;
         }
