@@ -5,7 +5,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
-        "Deploy__StartingFile": "Example.json",
+        "Deploy__StartingFile": "migrations_postgres.json",
         "Deploy__DatabaseProvider": "postgres",
         "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=App;User Id=postgres;Password=postgres",
         "Deploy__ConnectionAttempts": "3",

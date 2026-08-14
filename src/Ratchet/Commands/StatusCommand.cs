@@ -2,7 +2,7 @@ using Ratchet.FileHandling;
 
 namespace Ratchet.Commands;
 
-internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<UpdateCommand> logger) : ICommand
+internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<StatusCommand> logger) : ICommand
 {
     public string Name => "status";
     private int MigrationsToSync = 0;
@@ -14,7 +14,7 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
         logger.LogInformation("Executing {Command} command", Name);
 
         var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(x => x.FileName)], stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
 
         if (extractionError is not null)
             return extractionError;

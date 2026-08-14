@@ -11,11 +11,12 @@ Ratchet runs as a one-shot container: point it at a directory of SQL migrations,
 docker run --rm \
   -v ./migrations:/app/Migrations \
   -e Deploy__Command=update \
-  -e Deploy__StartingFile=starting.json \
   -e Deploy__DatabaseProvider=postgres \
   -e Deploy__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
   abeseler/ratchet
 ```
+
+Put a `ratchet.json` starting file in that mounted directory (see [Starting File](#starting-file)). Override the name with `--startingFile` / `Deploy__StartingFile` if you need to.
 
 See [Configuration](#configuration) for all options.
 
@@ -39,10 +40,10 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 ## Commands
 
-Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`):
+Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database.
 
-- **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command.
-- **`status`** — Report how many migrations are pending, already applied, would be synced, or filtered out by context. Read-only; applies nothing and takes no lock.
+- **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command. The summary reports how many were applied, synced, skipped (`onError: Skip`), marked (`onError: Mark`), and filtered out.
+- **`status`** — Report how many migrations are pending, already applied, would be synced, or filtered out by context. Read-only; applies nothing and takes no lock. Checksum mismatches are logged as warnings (they fail `update`).
 - **`sync`** — Record migrations as **already applied without running their SQL**. Use this to baseline a database whose schema already exists (for example, when adopting Ratchet on an established database) so those migrations are not re-run on the next `update`.
 - **`dryrun`** — Like `status`, but also writes the exact SQL that `update` would run to a plan file for review. Applies nothing and takes no lock. See [Dry Run](#dry-run).
 
@@ -51,9 +52,11 @@ Ratchet runs a single command per invocation, selected with `--command` (or `Dep
 Understanding a few core behaviors will help you use Ratchet safely:
 
 - **Roll-forward only.** Ratchet has no concept of a "down" or rollback migration. Recovery from a bad change is a human decision — fix the migration and re-apply, correct forward with a new migration, or have someone resolve the database state directly — rather than an automated reverse script. See [Design & Philosophy](#design--philosophy) for the reasoning.
-- **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration.
+- **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration. A failure to connect to the database after the configured retries also exits non-zero.
+- **`onError: Skip` is not a success.** A skipped migration is logged, is **not** recorded as applied, does **not** consume an apply sequence number, and will be retried on the next run. `onError: Mark` records the migration as applied (and sequences it) so it will not be retried. The `update` summary counts Applied, Skipped, and Marked separately.
 - **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
 - **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes the deployment to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check.
+- **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `runOnChange` / `runAlways` migration keeps its original sequence so dry-run reorder detection still reflects first-apply order.
 
 ### Deployment Lock
 
@@ -82,7 +85,9 @@ The plan reflects the exact execution order and applies the same context filteri
 The configuration can be done via command line arguments. The following arguments are available:
 
 - `--command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
-- `--startingFile`: The starting file. This is a json file that contains the files to include.
+- `--migrations`: Directory containing the starting file and SQL. Relative paths are resolved from the process working directory. Default is `Migrations`.
+- `--startingFile`: The starting file. This is a json file that contains the files to include, or a single `.sql` file. Default is `ratchet.json` in the working directory.
+- `--help`, `-h`: Print usage and exit.
 - `--maxLockWait`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `--contexts`: The contexts to use. Multiple contexts can be separated by a comma.
 - `--provider`: The provider to use. Possible values are `postgres`, `mssql` and `sqlite`.
@@ -92,7 +97,7 @@ The configuration can be done via command line arguments. The following argument
 - `--outputFile`: The file the `dryrun` command writes the migration plan to. Default is `ratchet-plan.sql`.
 - `--logLevel`: The log level to use. Possible values are `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`. Default is `Information`.
 
-The root directory is `/Migrations`. This is the parent directory of the starting file and all the files that are included.
+The default working directory is `Migrations` (in the container: `/app/Migrations`). This is the parent directory of the starting file and all the files that are included. Override it with `--migrations` or `Deploy__WorkingDirectory`.
 
 ### Running the Container
 
@@ -101,7 +106,8 @@ The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/rat
 You can use the command line arguments above or the following environment variables for configuration:
 
 - `Deploy__Command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
-- `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include.
+- `Deploy__WorkingDirectory`: Directory containing the starting file and SQL. Default is `Migrations`.
+- `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include, or a single `.sql` file. Default is `ratchet.json`.
 - `Deploy__LockWaitMaxSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
 - `Deploy__Contexts`: The contexts to use. Multiple contexts can be separated by a comma.
 - `Deploy__DatabaseProvider`: The provider to use. Possible values are `postgres`, `mssql` and `sqlite`.
@@ -115,7 +121,9 @@ To mount your migrations, you can mount a volume to `/app/Migrations`.
 
 ## Starting File
 
-The starting file is a json file that contains an array of includes. The following is an example of a starting file:
+If `--startingFile` / `Deploy__StartingFile` is omitted, Ratchet looks for **`ratchet.json`** in the working directory (`Migrations` by default; `/app/Migrations` in the container).
+
+The starting file is a json file that contains an array of includes. Files and directories in `include` are classified by what exists on disk — a folder named `v2.0` is a directory, not a file. The following is an example of a starting file:
 ```json
 [
   {
@@ -147,13 +155,13 @@ The following properties are available:
 - `contextRequired`: If a context is required. Default is `false`.
 - `errorIfMissingOrEmpty`: If an error should be thrown if the included file or directory is missing or empty. Default is `true`.
 
-Migrations are executed in the order they are included in the starting file. If a directory is included, the files are executed in alphabetical order.
+Migrations are executed in the order they are included in the starting file. If a directory is included, the files in that directory are executed in alphabetical order (the directory itself is not walked recursively).
 
 As described in [Design & Philosophy](#design--philosophy), the layout I recommend is one folder per object type (Tables, Views, Stored Procedures, etc.) and one file per object, with folders included in dependency order (for example, apply Tables before Views).
 
 ## Migrations
 
-Migrations are just SQL files. They can be named anything you want. The only requirement is that they are in the `/Migrations` directory. The files can contain 1 or more migrations and each migration can contain 1 or more statements. The statements are separated by a line that starts with `--NewStatement`.
+Migrations are just SQL files. They can be named anything you want. They must live under the working directory (`Migrations` by default). The files can contain 1 or more migrations and each migration can contain 1 or more statements. The statements are separated by a line that starts with `--NewStatement`.
 
 A migration is a block of SQL preceded by a multi-line comment that contains the migration properties.
 The comment must start with `/* Migration` and end with `*/`. The properties are in JSON format and must be valid JSON.
@@ -183,8 +191,8 @@ ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE '
 
 The following properties are available:
 
-- `title`: *REQUIRED* The title of the migration. This can be any string you want but must be unique within the migration file.
-- `dependsOn`: An array of migration files this migration must run after. See [Dependencies](#dependencies) below.
+- `title`: *REQUIRED* The title of the migration. This can be any string you want but must be unique within the migration file (case-insensitive, so `create` and `CREATE` collide).
+- `dependsOn`: An array of migrations this one must run after. Each entry is a file path (after every block in that file) or `file#title` (after that one block). See [Dependencies](#dependencies) below.
 - `runAlways`: If the migration should be run every time. Default is `false`.
 - `runOnChange`: If the migration should be run when the migration changes. Default is `false`.
 - `runInTransaction`: If the migration should be run in a transaction. Default is `true`.
@@ -205,7 +213,9 @@ Again, because a file can contain multiple migrations, keeping one file per obje
 
 By default, migrations run in the order they are included (starting file order, then alphabetical within a directory). For most cases, grouping folders by dependency in the starting file is enough (for example, apply `Tables` before `Views`).
 
-When folder ordering is not enough — or when you want a migration's ordering requirement to be explicit and reorder-safe — a migration can declare `dependsOn`:
+When folder ordering is not enough — or when you want a migration's ordering requirement to be explicit and reorder-safe — a migration can declare `dependsOn`.
+
+**File is the default.** A path with no `#` means "after *all* in-context migrations in that file":
 
 ```sql
 /* Migration
@@ -218,9 +228,24 @@ ALTER TABLE orders
 ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers (customer_id);
 ```
 
+**Pin a single block** with `file#title` when you only need one migration in that file (for example the `CREATE TABLE`, not later `ALTER`s):
+
+```sql
+/* Migration
+{
+    "title": "vw_orders:create",
+    "runOnChange": true,
+    "dependsOn": ["Tables/orders.sql#orders:createTable"]
+}
+*/
+CREATE OR REPLACE VIEW vw_orders AS
+SELECT id, amount FROM orders;
+```
+
 Behavior and rationale:
 
-- **References are by file, not by title.** A file is the natural, filesystem-unique key, and you never have to edit the file you depend on. Depending on a file means "after *all* in-context migrations in that file."
+- **File references are the default.** Depending on a file means "after *all* in-context migrations in that file." You never have to edit the file you depend on.
+- **`file#title` is the escape hatch.** It orders after that one block only. Title matching is case-insensitive. The file part is still required — a bare `#title` is rejected.
 - **Ordering stays convention-first.** `dependsOn` only adds constraints on top of the existing include order; a stable topological sort keeps everything else where it was. Declaring nothing behaves exactly as before.
 - **Paths are normalized for you.** Separators (`\` or `/`) and a leading slash don't matter, and matching is case-insensitive — so you don't have to mirror the tool's internal path format.
 - **Validation is fail-fast, before any SQL runs.** The deployment stops with a clear error if a reference is invalid (see edge cases below) or forms a dependency cycle (the cycle path is printed).
@@ -231,10 +256,11 @@ Because Ratchet does not parse your SQL, it cannot infer dependencies — `depen
 
 Ratchet does not track deleted migrations, and `dependsOn` is designed to stay consistent with that:
 
-- **The referenced file exists → it is ordered before the dependent.** Removing a file that nothing references simply changes the order of what remains; because already-applied migrations are skipped regardless of position, this is safe and produces no error.
-- **The referenced file is missing but was already applied → the reference is treated as satisfied.** You can delete an old migration file even if something still declares `dependsOn` on it; since it already ran, the ordering constraint is already met and no error is raised.
-- **The referenced file is missing and was never applied → hard error.** This is almost always a typo or a genuinely missing dependency, so the deployment stops rather than silently running in the wrong order.
-- **The reference matches more than one file (case-insensitively) → hard error.** Ambiguous references are rejected.
+- **The referenced file or block exists → it is ordered before the dependent.** Removing a file that nothing references simply changes the order of what remains; because already-applied migrations are skipped regardless of position, this is safe and produces no error.
+- **A file reference is missing but that file was already applied → the reference is treated as satisfied.** You can delete an old migration file even if something still declares `dependsOn` on it; since it already ran, the ordering constraint is already met and no error is raised. Any applied block from that file counts.
+- **A `file#title` reference is missing but that specific block was already applied → satisfied.** A different title from the same file being applied is **not** enough — title references are exact (case-insensitive).
+- **The referenced file or block is missing and was never applied → hard error.** This is almost always a typo or a genuinely missing dependency, so the deployment stops rather than silently running in the wrong order. An empty `#` fragment (`orders.sql#`) is also a hard error.
+- **The reference matches more than one file, or more than one title in that file (case-insensitively) → hard error.** Ambiguous references are rejected.
 - **The referenced migrations are all excluded by the active context → hard error.** Depending on something that will not run in the current context is treated as a misconfiguration.
 - **The dependencies form a cycle → hard error**, with the cycle path printed so you can see which declarations to break.
 

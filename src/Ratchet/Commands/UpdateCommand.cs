@@ -14,7 +14,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
         logger.LogInformation("Executing {Command} command", Name);
 
         var appliedHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(x => x.FileName)], stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
 
         if (extractionError is not null)
             return extractionError;
@@ -57,9 +57,11 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                       Applied             =  {Applied}
                       Previously applied  =  {PreviouslyApplied}
                       Synced              =  {Synced}
+                      Skipped             =  {Skipped}
+                      Marked              =  {Marked}
                       Filtered out        =  {FilteredOut}
 
-                    """, MigrationsToApply.Count, migrationHistories.Count, MigrationsToSync.Count, MigrationsFilteredOut);
+                    """, repo.MigrationsApplied, migrationHistories.Count, repo.MigrationsSynced, repo.MigrationsSkipped, repo.MigrationsMarked, MigrationsFilteredOut);
 
             return result;
         }
@@ -78,7 +80,7 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             await repo.SyncMigrationHistory(migration, history, stoppingToken);
         }
 
-        var migrationsApplied = 0;
+        var migrationsProcessed = 0;
         foreach (var (migration, history) in MigrationsToApply)
         {
             stoppingToken.ThrowIfCancellationRequested();
@@ -89,9 +91,9 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                 onFailure: error => false);
 
             if (continueToNextMigration is false)
-                return Exceptions.DeploymentFailed(MigrationsToApply.Count - migrationsApplied);
+                return Exceptions.DeploymentFailed(MigrationsToApply.Count - migrationsProcessed);
 
-            migrationsApplied++;
+            migrationsProcessed++;
         }
 
         return Success.Default;

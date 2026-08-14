@@ -24,7 +24,7 @@ internal static class SqlFileParser
                     buildingHeader = true;
                     if (migrationBuilder.Build() is { } migration)
                     {
-                        if (migrations.Any(m => m.Title == migration.Title))
+                        if (HasDuplicateTitle(migrations, migration.Title))
                             return Exceptions.DuplicateTitle(migration.Title);
 
                         migrations.Add(migration);
@@ -59,7 +59,7 @@ internal static class SqlFileParser
 
             if (migrationBuilder.Build() is { } lastMigration)
             {
-                if (migrations.Any(m => m.Title == lastMigration.Title))
+                if (HasDuplicateTitle(migrations, lastMigration.Title))
                     return Exceptions.DuplicateTitle(lastMigration.Title);
 
                 migrations.Add(lastMigration);
@@ -73,4 +73,7 @@ internal static class SqlFileParser
 
         return migrations.Count == 0 && (include?.ErrorIfMissingOrEmpty ?? true) ? Exceptions.FileIsEmpty : migrations;
     }
+
+    private static bool HasDuplicateTitle(List<Migration> migrations, string title) =>
+        migrations.Any(m => m.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
 }

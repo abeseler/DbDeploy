@@ -53,7 +53,7 @@ echo "NEW VERSION: $VERSION"
 
 if [ $TAG != $VERSION ]
 then
-    git tag -a $VERSION -m "New verison: $VERSION"
+    git tag -a $VERSION -m "New version: $VERSION"
     echo "Tagging new version: $VERSION"
     git push origin $VERSION
 fi

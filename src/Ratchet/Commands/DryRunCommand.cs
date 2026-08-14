@@ -12,7 +12,7 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         logger.LogInformation("Executing {Command} command", Name);
 
         var migrationHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(x => x.FileName)], stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. migrationHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
 
         if (extractionError is not null)
             return extractionError;

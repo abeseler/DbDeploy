@@ -2,9 +2,10 @@ namespace Ratchet.Models;
 
 internal static class MigrationOrderResolver
 {
-    public static Result<List<Migration>> Resolve(IReadOnlyList<Migration> migrations, string[] contexts, IReadOnlyCollection<string> appliedFileNames)
+    public static Result<List<Migration>> Resolve(IReadOnlyList<Migration> migrations, string[] contexts, IReadOnlyCollection<AppliedMigration> applied)
     {
-        var appliedKeys = appliedFileNames.Select(Key).ToHashSet();
+        var appliedFileKeys = applied.Select(a => Key(a.FileName)).ToHashSet();
+        var appliedBlockKeys = applied.Select(a => BlockKey(a.FileName, a.Title)).ToHashSet();
         var count = migrations.Count;
         var inContext = new bool[count];
         var filesByKey = new Dictionary<string, List<int>>();
@@ -41,10 +42,14 @@ internal static class MigrationOrderResolver
 
             foreach (var reference in migrations[i].DependsOn)
             {
-                var key = Key(reference);
-                if (filesByKey.TryGetValue(key, out var targets) is false)
+                var (file, title) = ParseReference(reference);
+                if (file.Length == 0 || title is { Length: 0 })
+                    return Exceptions.DependencyNotFound(migrations[i].Id, reference);
+
+                var key = Key(file);
+                if (filesByKey.TryGetValue(key, out var fileTargets) is false)
                 {
-                    if (appliedKeys.Contains(key))
+                    if (IsApplied(file, title, appliedFileKeys, appliedBlockKeys))
                         continue;
 
                     return Exceptions.DependencyNotFound(migrations[i].Id, reference);
@@ -52,6 +57,27 @@ internal static class MigrationOrderResolver
 
                 if (distinctNamesByKey[key].Count > 1)
                     return Exceptions.DependencyAmbiguous(migrations[i].Id, reference);
+
+                var targets = fileTargets;
+                if (title is not null)
+                {
+                    var titleMatches = fileTargets
+                        .Where(t => migrations[t].Title.Equals(title, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (titleMatches.Count == 0)
+                    {
+                        if (IsApplied(file, title, appliedFileKeys, appliedBlockKeys))
+                            continue;
+
+                        return Exceptions.DependencyNotFound(migrations[i].Id, reference);
+                    }
+
+                    if (titleMatches.Count > 1)
+                        return Exceptions.DependencyAmbiguous(migrations[i].Id, reference);
+
+                    targets = titleMatches;
+                }
 
                 var addedEdge = false;
                 foreach (var target in targets)
@@ -128,6 +154,21 @@ internal static class MigrationOrderResolver
 
         return string.Join("\n  -> ", cycle);
     }
+
+    private static (string File, string? Title) ParseReference(string reference)
+    {
+        var trimmed = reference.Trim();
+        var hash = trimmed.IndexOf('#');
+        if (hash < 0)
+            return (trimmed, null);
+
+        return (trimmed[..hash].Trim(), trimmed[(hash + 1)..].Trim());
+    }
+
+    private static bool IsApplied(string file, string? title, HashSet<string> appliedFileKeys, HashSet<string> appliedBlockKeys) =>
+        title is null ? appliedFileKeys.Contains(Key(file)) : appliedBlockKeys.Contains(BlockKey(file, title));
+
+    private static string BlockKey(string file, string title) => $"{Key(file)}#{title.Trim().ToLowerInvariant()}";
 
     private static string Key(string path) => path.Replace('\\', '/').TrimStart('/').Trim().ToLowerInvariant();
 }

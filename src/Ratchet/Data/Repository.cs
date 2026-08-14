@@ -7,8 +7,11 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
 {
     private MigrationLock? _migrationLock;
     private IDbConnection? _lockConnection;
+    private int _lastExecutedSequence;
     public int MigrationsApplied { get; private set; } = 0;
     public int MigrationsSynced { get; private set; } = 0;
+    public int MigrationsSkipped { get; private set; } = 0;
+    public int MigrationsMarked { get; private set; } = 0;
 
     private async Task<(IDbConnection Connection, bool Dispose)> Lease(CancellationToken stoppingToken) =>
         _lockConnection is { } held ? (held, false) : (await dbProvider.ConnectAsync(stoppingToken), true);
@@ -56,7 +59,11 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         var (connection, dispose) = await Lease(stoppingToken);
         try
         {
-            var migrationHistories = await connection.QueryAsync<MigrationHistory>(dbProvider.GetAllMigrationHistories);
+            var migrationHistories = (await connection.QueryAsync<MigrationHistory>(dbProvider.GetAllMigrationHistories)).ToList();
+            _lastExecutedSequence = migrationHistories
+                .Select(h => h.ExecutedSequence ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
             return migrationHistories.ToDictionary(x => x.MigrationId, x => x);
         }
         finally
@@ -76,7 +83,6 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
 
         migrationHistory.Hash = migration.Hash;
         migrationHistory.ExecutedOn = DateTime.UtcNow;
-        migrationHistory.ExecutedSequence = MigrationsApplied + 1;
         migrationHistory.DeploymentId = _migrationLock?.DeploymentId;
 
         var (connection, dispose) = await Lease(stoppingToken);
@@ -88,6 +94,7 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
                 stoppingToken.ThrowIfCancellationRequested();
                 await connection.ExecuteAsync(sql, transaction: transaction, commandTimeout: migration.Timeout);
             }
+            AssignExecutedSequenceIfNeeded(migrationHistory);
             await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory, transaction: transaction);
             transaction?.Commit();
 
@@ -105,7 +112,13 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
             if (migration.OnError == Migration.ErrorHandling.Mark)
             {
                 logger.LogWarning("Marking complete because OnError is '{OnError}'", migration.OnError);
+                AssignExecutedSequenceIfNeeded(migrationHistory);
                 await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory);
+                MigrationsMarked++;
+            }
+            else if (migration.OnError == Migration.ErrorHandling.Skip)
+            {
+                MigrationsSkipped++;
             }
 
             return migration.OnError == Migration.ErrorHandling.Fail ? new Exception(ex.Message) : Success.Default;
@@ -115,6 +128,14 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
             transaction?.Dispose();
             if (dispose) connection.Dispose();
         }
+    }
+
+    private void AssignExecutedSequenceIfNeeded(MigrationHistory history)
+    {
+        if (history.ExecutedSequence is not null)
+            return;
+
+        history.ExecutedSequence = ++_lastExecutedSequence;
     }
 
     public async Task SyncMigrationHistory(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)

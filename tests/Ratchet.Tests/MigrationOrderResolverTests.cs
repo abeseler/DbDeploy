@@ -24,8 +24,11 @@ public sealed class MigrationOrderResolverTests
         return ordered!.Select(m => m.Id).ToList();
     }
 
-    private static Result<List<Migration>> Resolve(List<Migration> migrations, string[] contexts, string[]? applied = null) =>
+    private static Result<List<Migration>> Resolve(List<Migration> migrations, string[] contexts, AppliedMigration[]? applied = null) =>
         MigrationOrderResolver.Resolve(migrations, contexts, applied ?? []);
+
+    private static AppliedMigration[] Applied(params (string File, string Title)[] items) =>
+        [.. items.Select(x => new AppliedMigration(x.File, x.Title))];
 
     [Fact]
     public void Resolve_PreservesInsertionOrder_WhenNoDependencies()
@@ -174,7 +177,7 @@ public sealed class MigrationOrderResolverTests
             NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql"])
         };
 
-        var ids = OrderedIds(Resolve(migrations, [], applied: ["Tables/orders.sql"]));
+        var ids = OrderedIds(Resolve(migrations, [], applied: Applied(("Tables/orders.sql", "orders"))));
 
         Assert.Equal(["Fks/fk.sql [fk]"], ids);
     }
@@ -187,10 +190,162 @@ public sealed class MigrationOrderResolverTests
             NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql"])
         };
 
-        var (ordered, error) = Resolve(migrations, [], applied: ["Tables/other.sql"]);
+        var (ordered, error) = Resolve(migrations, [], applied: Applied(("Tables/other.sql", "other")));
 
         Assert.Null(ordered);
         Assert.NotNull(error);
         Assert.Contains("Tables/orders.sql", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_OrdersAfterOnlyThatBlock()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Views/v.sql", "v", dependsOn: ["Tables/orders.sql#orders:create"]),
+            NewMigration("Tables/orders.sql", "orders:create"),
+            NewMigration("Tables/orders.sql", "orders:addColumn")
+        };
+
+        var ids = OrderedIds(Resolve(migrations, []));
+
+        Assert.Equal(["Tables/orders.sql [orders:create]", "Views/v.sql [v]", "Tables/orders.sql [orders:addColumn]"], ids);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_NormalizesPathAndTitleCase()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["\\TABLES\\orders.sql#ORDERS:CREATE"]),
+            NewMigration("Tables/orders.sql", "orders:create"),
+            NewMigration("Tables/orders.sql", "orders:addColumn")
+        };
+
+        var ids = OrderedIds(Resolve(migrations, []));
+
+        Assert.Equal(0, ids.IndexOf("Tables/orders.sql [orders:create]"));
+        Assert.True(ids.IndexOf("Tables/orders.sql [orders:create]") < ids.IndexOf("Fks/fk.sql [fk]"));
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_ReturnsNotFound_WhenTitleMissingFromFile()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#orders:create"]),
+            NewMigration("Tables/orders.sql", "orders:addColumn")
+        };
+
+        var (ordered, error) = Resolve(migrations, []);
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("Tables/orders.sql#orders:create", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_ReturnsNotFound_WhenFileMissing()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#orders:create"])
+        };
+
+        var (ordered, error) = Resolve(migrations, []);
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("Tables/orders.sql#orders:create", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_ReturnsNotFound_WhenFragmentIsEmpty()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#"]),
+            NewMigration("Tables/orders.sql", "orders")
+        };
+
+        var (ordered, error) = Resolve(migrations, []);
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("Tables/orders.sql#", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_ReturnsAmbiguous_WhenTitleMatchesMultipleBlocksCaseInsensitively()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#create"]),
+            NewMigration("Tables/orders.sql", "create"),
+            NewMigration("Tables/orders.sql", "CREATE")
+        };
+
+        var (ordered, error) = Resolve(migrations, []);
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("more than one", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_ReturnsFilteredOut_WhenTitleExcludedByContext()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#orders"]),
+            NewMigration("Tables/orders.sql", "orders", contextFilter: ["prod"])
+        };
+
+        var (ordered, error) = Resolve(migrations, ["dev"]);
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("excluded by the active context", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_SuppressesNotFound_WhenThatBlockWasAlreadyApplied()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#orders:create"])
+        };
+
+        var ids = OrderedIds(Resolve(migrations, [], applied: Applied(("Tables/orders.sql", "orders:create"))));
+
+        Assert.Equal(["Fks/fk.sql [fk]"], ids);
+    }
+
+    [Fact]
+    public void Resolve_TitleReference_StillErrors_WhenADifferentBlockInThatFileWasApplied()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql#orders:create"])
+        };
+
+        var (ordered, error) = Resolve(migrations, [], applied: Applied(("Tables/orders.sql", "orders:addColumn")));
+
+        Assert.Null(ordered);
+        Assert.NotNull(error);
+        Assert.Contains("Tables/orders.sql#orders:create", error!.Message);
+    }
+
+    [Fact]
+    public void Resolve_FileReference_StillSatisfied_WhenAnyBlockInThatFileWasApplied()
+    {
+        var migrations = new List<Migration>
+        {
+            NewMigration("Fks/fk.sql", "fk", dependsOn: ["Tables/orders.sql"])
+        };
+
+        var ids = OrderedIds(Resolve(migrations, [], applied: Applied(("Tables/orders.sql", "orders:addColumn"))));
+
+        Assert.Equal(["Fks/fk.sql [fk]"], ids);
     }
 }

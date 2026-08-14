@@ -2,16 +2,21 @@ namespace Ratchet.FileHandling;
 
 internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogger<FileMigrationExtractor> logger)
 {
-    private readonly string _workingDirectory = Path.GetFullPath(Settings.WorkingDirectory, AppDomain.CurrentDomain.BaseDirectory);
+    private readonly string _workingDirectory = Path.GetFullPath(
+        string.IsNullOrWhiteSpace(settings.Value.WorkingDirectory) ? Settings.DefaultWorkingDirectory : settings.Value.WorkingDirectory,
+        Directory.GetCurrentDirectory());
     private readonly JsonSerializerOptions _options = new()
     {
         PropertyNameCaseInsensitive = true,
         AllowTrailingCommas = true
     };
 
-    public Result<MigrationCollection> ExtractFromStartingFile(IReadOnlyCollection<string> appliedFileNames, CancellationToken stoppingToken)
+    public Result<MigrationCollection> ExtractFromStartingFile(IReadOnlyCollection<AppliedMigration> applied, CancellationToken stoppingToken)
     {
-        var startingFile = new FileInfo(Path.GetFullPath(settings.Value.StartingFile ?? "", _workingDirectory));
+        var startingFileName = string.IsNullOrWhiteSpace(settings.Value.StartingFile)
+            ? Settings.DefaultStartingFile
+            : settings.Value.StartingFile;
+        var startingFile = new FileInfo(Path.GetFullPath(startingFileName, _workingDirectory));
 
         logger.LogDebug("Working directory: {WorkingDirectory}", _workingDirectory);
         logger.LogDebug("Starting file: {StartingFile}", startingFile.FullName);
@@ -19,7 +24,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         if (startingFile.Exists is false)
         {
             logger.LogCritical("{Error}: {StartingFile}", Exceptions.FileDoesNotExist.Message, startingFile.FullName);
-            throw new FileNotFoundException($"Starting file does not exist: {settings.Value.StartingFile}");
+            throw new FileNotFoundException($"Starting file does not exist: {startingFileName}");
         }
 
         var migrationIncludes = new List<MigrationIncludes>();
@@ -36,7 +41,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         {
             migrationIncludes.Add(new()
             {
-                Include = [settings.Value.StartingFile!]
+                Include = [startingFileName]
             });
         }
         else
@@ -51,58 +56,43 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
             foreach (var path in include.Include)
             {
                 var fullPath = Path.GetFullPath(path, _workingDirectory);
-                if (Path.HasExtension(path))
+                if (File.Exists(fullPath))
                 {
                     logger.LogDebug("Extracting migrations from file: {Include}", path);
                     var file = new FileInfo(fullPath);
-                    if (file.Exists is false && include.ErrorIfMissingOrEmpty)
-                    {
-                        logger.LogError("{Error}: {Include}", Exceptions.FileDoesNotExist.Message, path);
-                        errorCount++;
-                        continue;
-                    }
-
-                    if (file.Exists && file.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
-                    {
+                    if (file.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
                         ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
-                    }
                     else
-                    {
                         logger.LogInformation("Skipping non-SQL file: {Include}", path);
-                    }
-
                     continue;
                 }
 
-                logger.LogDebug("Extracting migrations from directory: {Include}", path);
-                var directory = new DirectoryInfo(fullPath);
-                if (directory.Exists is false && include.ErrorIfMissingOrEmpty)
+                if (Directory.Exists(fullPath))
                 {
-                    logger.LogError("{Error}: {Include}", Exceptions.DirectoryDoesNotExist.Message, path);
+                    logger.LogDebug("Extracting migrations from directory: {Include}", path);
+                    foreach (var file in new DirectoryInfo(fullPath).EnumerateFiles().OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+                        ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
+                    continue;
+                }
+
+                if (include.ErrorIfMissingOrEmpty)
+                {
+                    logger.LogError("{Error}: {Include}", Exceptions.PathDoesNotExist.Message, path);
                     errorCount++;
-                    continue;
-                }
-
-                if (directory.Exists is false)
-                    continue;
-
-                foreach (var file in directory.EnumerateFiles().OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-                {
-                    ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
                 }
             }
         }
 
-        return BuildOrdered(migrations, errorCount, appliedFileNames);
+        return BuildOrdered(migrations, errorCount, applied);
     }
 
-    private Result<MigrationCollection> BuildOrdered(MigrationCollection migrations, int errorCount, IReadOnlyCollection<string> appliedFileNames)
+    private Result<MigrationCollection> BuildOrdered(MigrationCollection migrations, int errorCount, IReadOnlyCollection<AppliedMigration> applied)
     {
         if (errorCount > 0)
             return Exceptions.MigrationsParsingError(errorCount);
 
         var contexts = settings.Value.Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
-        var (ordered, error) = MigrationOrderResolver.Resolve(migrations.Values.ToList(), contexts, appliedFileNames);
+        var (ordered, error) = MigrationOrderResolver.Resolve(migrations.Values.ToList(), contexts, applied);
         if (error is not null)
             return error;
 

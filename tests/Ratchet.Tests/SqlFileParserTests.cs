@@ -46,4 +46,75 @@ public sealed class SqlFileParserTests
         Assert.Equal(Migration.ErrorHandling.Skip, migration.OnError);
         Assert.Equal(2, migration.SqlStatements.Length);
     }
+
+    [Fact]
+    public void Parse_ReturnsDuplicateTitle_WhenTitlesMatchExactly()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "orders:create" }
+            */
+            SELECT 1;
+
+            /* Migration
+            { "title": "orders:create" }
+            */
+            SELECT 2;
+            """);
+
+        Assert.True(result.Failed);
+        Assert.Contains("orders:create", result.Match(_ => "", e => e.Message));
+    }
+
+    [Fact]
+    public void Parse_ReturnsDuplicateTitle_WhenTitlesDifferOnlyByCase()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "orders:create" }
+            */
+            SELECT 1;
+
+            /* Migration
+            { "title": "Orders:Create" }
+            */
+            SELECT 2;
+            """);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Orders:Create", result.Match(_ => "", e => e.Message));
+    }
+
+    [Fact]
+    public void Parse_AllowsDistinctTitlesInTheSameFile()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "orders:create" }
+            */
+            SELECT 1;
+
+            /* Migration
+            { "title": "orders:addColumn" }
+            */
+            SELECT 2;
+            """);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, result.Match(m => m!.Count, _ => 0));
+    }
+
+    private static Ratchet.Common.Result<List<Migration>> ParseTemporary(string sql)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"ratchet-parse-{Guid.NewGuid():N}.sql");
+        try
+        {
+            File.WriteAllText(path, sql);
+            return SqlFileParser.Parse(new FileInfo(path), "temp.sql", null, CancellationToken.None);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
 }

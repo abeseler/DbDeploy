@@ -12,13 +12,23 @@ var config = new ConfigurationBuilder()
     .AddCommandLine(args, Arguments.Mapping)
     .Build();
 
-Log.Logger = new LoggerConfiguration()
+if (Usage.IsHelpRequest(args) || Usage.IsHelpCommand(config["Deploy:Command"]))
+{
+    Usage.Write();
+    return;
+}
+
+var loggerConfiguration = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .WriteTo.Console()
-    .WriteTo.OpenTelemetry(options =>
+    .WriteTo.Console();
+
+var otelEndpoint = config["OTEL_EXPORTER_OTLP_ENDPOINT"];
+if (string.IsNullOrWhiteSpace(otelEndpoint) is false)
+{
+    loggerConfiguration.WriteTo.OpenTelemetry(options =>
     {
-        options.Endpoint = config["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        options.Endpoint = otelEndpoint;
         options.Protocol = OtlpProtocol.HttpProtobuf;
         var headers = config["OTEL_EXPORTER_OTLP_HEADERS"]?.Split(',') ?? [];
         foreach (var header in headers)
@@ -35,7 +45,10 @@ Log.Logger = new LoggerConfiguration()
         {
             ["service.name"] = config["OTEL_SERVICE_NAME"] ?? "ratchet"
         };
-    })
+    });
+}
+
+Log.Logger = loggerConfiguration
     .ReadFrom.Configuration(config)
     .CreateLogger();
 
@@ -44,11 +57,6 @@ services.AddSingleton<IConfiguration>(config);
 services.AddLogging(b =>
 {
     b.AddSerilog(dispose: true);
-    b.AddOpenTelemetry(logging =>
-    {
-        logging.IncludeFormattedMessage = true;
-        logging.IncludeScopes = true;
-    });
 });
 
 services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);

@@ -2,7 +2,7 @@ using Ratchet.FileHandling;
 
 namespace Ratchet.Commands;
 
-internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<UpdateCommand> logger) : ICommand
+internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<SyncCommand> logger) : ICommand
 {
     public string Name => "sync";
     private readonly List<(Migration, MigrationHistory?)> MigrationsToSync = [];
@@ -13,7 +13,7 @@ internal sealed class SyncCommand(FileMigrationExtractor extractor, Repository r
         logger.LogInformation("Executing {Command} command", Name);
 
         var appliedHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(x => x.FileName)], stoppingToken);
+        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
 
         if (extractionError is not null)
             return extractionError;

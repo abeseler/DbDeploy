@@ -5,6 +5,7 @@ internal static class Arguments
     public static readonly Dictionary<string, string> Mapping = new()
     {
         { "--command", "Deploy:Command" },
+        { "--migrations", "Deploy:WorkingDirectory" },
         { "--startingFile", "Deploy:StartingFile" },
         { "--maxLockWait", "Deploy:LockWaitMaxSeconds" },
         { "--contexts", "Deploy:Contexts" },

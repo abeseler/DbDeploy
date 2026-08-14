@@ -3,9 +3,11 @@ namespace Ratchet.Common;
 internal sealed class Settings
 {
     public const string SectionName = "Deploy";
-    public const string WorkingDirectory = "Migrations";
+    public const string DefaultWorkingDirectory = "Migrations";
+    public const string DefaultStartingFile = "ratchet.json";
     public string? Command { get; set; }
-    public string? StartingFile { get; set; }
+    public string WorkingDirectory { get; set; } = DefaultWorkingDirectory;
+    public string StartingFile { get; set; } = DefaultStartingFile;
     public string? Contexts { get; set; }
     public string? DatabaseProvider { get; set; }
     public string? ConnectionString { get; set; }
