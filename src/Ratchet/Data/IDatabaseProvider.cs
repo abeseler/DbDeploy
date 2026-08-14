@@ -17,6 +17,24 @@ public interface IDatabaseProvider
     public string UpdateMigrationHistory { get; }
 }
 
+internal sealed class UnconfiguredDbProvider : IDatabaseProvider
+{
+    public Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Connection string is not configured.");
+
+    public Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public string EnsureMigrationTablesExist => "";
+    public string AcquireLock => "";
+    public string ReleaseLock => "";
+    public string GetAllMigrationHistories => "";
+    public string InsertMigrationHistory => "";
+    public string UpdateMigrationHistory => "";
+}
+
 internal sealed class PostgresDbProvider(string connectionString) : IDatabaseProvider
 {
     private readonly string _connectionString = new Npgsql.NpgsqlConnectionStringBuilder(connectionString).ConnectionString;

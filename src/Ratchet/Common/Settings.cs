@@ -13,6 +13,9 @@ internal sealed class Settings
         Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
     public string? DatabaseProvider { get; set; }
     public string? ConnectionString { get; set; }
+    public bool IsDatabaseConfigured =>
+        string.IsNullOrWhiteSpace(ConnectionString) is false
+        && string.IsNullOrWhiteSpace(DatabaseProvider) is false;
     public int ConnectionAttempts { get; set; } = 10;
     public int ConnectionRetryDelaySeconds { get; set; } = 5;
     public int LockWaitMaxSeconds { get; set; } = 120;

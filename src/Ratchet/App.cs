@@ -30,28 +30,31 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
         logger.LogInformation("Starting Ratchet...");
         _startedTimestamp = Stopwatch.GetTimestamp();
 
-        var connectionAttemptsRemaining = settings.Value.ConnectionAttempts;
-        var connectionRetryDelay = TimeSpan.FromSeconds(settings.Value.ConnectionRetryDelaySeconds);
-        
-        while (connectionAttemptsRemaining > 0)
+        if (CommandNames.RequiresDatabase(commandName) || settings.Value.IsDatabaseConfigured)
         {
-            try
-            {
-                await repository.EnsureMigrationTablesExist(stoppingToken);
-                break;
-            }
-            catch (Exception ex)
-            {
-                connectionAttemptsRemaining--;
-                if (connectionAttemptsRemaining <= 0)
-                {
-                    logger.LogCritical("Failed to connect to the database. {ErrorMessage}. No more retries left.", ex.Message);
-                    Environment.ExitCode = 1;
-                    return;
-                }
+            var connectionAttemptsRemaining = settings.Value.ConnectionAttempts;
+            var connectionRetryDelay = TimeSpan.FromSeconds(settings.Value.ConnectionRetryDelaySeconds);
 
-                logger.LogWarning("Failed to connect to the database. {ErrorMessage}.\nRetrying {RetriesRemaining} more times...", ex.Message, connectionAttemptsRemaining);
-                await Task.Delay(connectionRetryDelay, stoppingToken);
+            while (connectionAttemptsRemaining > 0)
+            {
+                try
+                {
+                    await repository.EnsureMigrationTablesExist(stoppingToken);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    connectionAttemptsRemaining--;
+                    if (connectionAttemptsRemaining <= 0)
+                    {
+                        logger.LogCritical("Failed to connect to the database. {ErrorMessage}. No more retries left.", ex.Message);
+                        Environment.ExitCode = 1;
+                        return;
+                    }
+
+                    logger.LogWarning("Failed to connect to the database. {ErrorMessage}.\nRetrying {RetriesRemaining} more times...", ex.Message, connectionAttemptsRemaining);
+                    await Task.Delay(connectionRetryDelay, stoppingToken);
+                }
             }
         }
 

@@ -9,8 +9,11 @@ internal static class CommandNames
     public const string Baseline = "baseline";
     public const string Repair = "repair";
     public const string DryRun = "dryrun";
+    public const string Validate = "validate";
 
-    public static readonly string[] All = [Update, Status, Baseline, Repair, DryRun];
+    public static readonly string[] All = [Update, Status, Validate, DryRun, Baseline, Repair];
+
+    public static bool RequiresDatabase(string name) => name != Validate;
 
     public static bool TryNormalize(string? name, [NotNullWhen(true)] out string? normalized)
     {

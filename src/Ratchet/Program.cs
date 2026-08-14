@@ -63,19 +63,23 @@ services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
 services.AddSingleton<App>();
 
 services.AddSingleton<FileMigrationExtractor>();
+services.AddSingleton<UpdateCommand>();
 services.AddSingleton<StatusCommand>();
+services.AddSingleton<ValidateCommand>();
+services.AddSingleton<DryRunCommand>();
 services.AddSingleton<BaselineCommand>();
 services.AddSingleton<RepairCommand>();
-services.AddSingleton<UpdateCommand>();
-services.AddSingleton<DryRunCommand>();
 services.AddSingleton<CommandResolver>();
 
 services.AddSingleton<Repository>();
 services.AddSingleton<IDatabaseProvider>(sp =>
 {
-    var options = sp.GetRequiredService<IOptions<Settings>>();
-    var connectionString = options.Value.ConnectionString ?? throw new InvalidOperationException("Connection string is not configured.");
-    return options.Value.DatabaseProvider switch
+    var options = sp.GetRequiredService<IOptions<Settings>>().Value;
+    if (options.IsDatabaseConfigured is false)
+        return new UnconfiguredDbProvider();
+
+    var connectionString = options.ConnectionString!;
+    return options.DatabaseProvider switch
     {
         "postgres" => new PostgresDbProvider(connectionString),
         "mssql" => new MsSqlDbProvider(connectionString),
