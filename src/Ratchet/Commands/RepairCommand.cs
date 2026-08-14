@@ -4,7 +4,7 @@ namespace Ratchet.Commands;
 
 internal sealed class RepairCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<RepairCommand> logger) : ICommand
 {
-    public string Name => "repair";
+    public string Name => CommandNames.Repair;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {

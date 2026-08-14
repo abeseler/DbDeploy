@@ -1,6 +1,8 @@
 using System.Data;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Ratchet.Commands;
 using Ratchet.Common;
 using Ratchet.Data;
 using Xunit;
@@ -18,11 +20,34 @@ public sealed class AppTests
             Environment.ExitCode = 0;
             var settings = Options.Create(new Settings { Command = null });
             var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, [], settings, NullLogger<App>.Instance);
+            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
             Assert.Equal(1, Environment.ExitCode);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_InvalidCommandDoesNotConnect()
+    {
+        var previous = Environment.ExitCode;
+        var provider = new FailingDbProvider();
+        try
+        {
+            Environment.ExitCode = 0;
+            var settings = Options.Create(new Settings { Command = "foobar" });
+            var repository = new Repository(provider, NullLogger<Repository>.Instance);
+            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+
+            await app.RunAsync();
+
+            Assert.Equal(1, Environment.ExitCode);
+            Assert.Equal(0, provider.ConnectCalls);
         }
         finally
         {
@@ -39,7 +64,7 @@ public sealed class AppTests
             Environment.ExitCode = 1;
             var settings = Options.Create(new Settings { Command = "help" });
             var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, [], settings, NullLogger<App>.Instance);
+            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -65,7 +90,7 @@ public sealed class AppTests
                 ConnectionRetryDelaySeconds = 0
             });
             var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, [], settings, NullLogger<App>.Instance);
+            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -77,10 +102,18 @@ public sealed class AppTests
         }
     }
 
+    private static CommandResolver UnusedResolver() =>
+        new(new ServiceCollection().BuildServiceProvider());
+
     private sealed class FailingDbProvider : IDatabaseProvider
     {
-        public Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken) =>
+        public int ConnectCalls { get; private set; }
+
+        public Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken)
+        {
+            ConnectCalls++;
             throw new InvalidOperationException("cannot connect");
+        }
 
         public Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken) =>
             Task.FromResult(false);

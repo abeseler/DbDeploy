@@ -4,7 +4,7 @@ namespace Ratchet.Commands;
 
 internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<StatusCommand> logger) : ICommand
 {
-    public string Name => "status";
+    public string Name => CommandNames.Status;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {

@@ -63,11 +63,12 @@ services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
 services.AddSingleton<App>();
 
 services.AddSingleton<FileMigrationExtractor>();
-services.AddSingleton<ICommand, StatusCommand>();
-services.AddSingleton<ICommand, BaselineCommand>();
-services.AddSingleton<ICommand, RepairCommand>();
-services.AddSingleton<ICommand, UpdateCommand>();
-services.AddSingleton<ICommand, DryRunCommand>();
+services.AddSingleton<StatusCommand>();
+services.AddSingleton<BaselineCommand>();
+services.AddSingleton<RepairCommand>();
+services.AddSingleton<UpdateCommand>();
+services.AddSingleton<DryRunCommand>();
+services.AddSingleton<CommandResolver>();
 
 services.AddSingleton<Repository>();
 services.AddSingleton<IDatabaseProvider>(sp =>

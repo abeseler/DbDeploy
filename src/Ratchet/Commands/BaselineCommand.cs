@@ -4,7 +4,7 @@ namespace Ratchet.Commands;
 
 internal sealed class BaselineCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<BaselineCommand> logger) : ICommand
 {
-    public string Name => "baseline";
+    public string Name => CommandNames.Baseline;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {

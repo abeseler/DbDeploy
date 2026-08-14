@@ -5,7 +5,7 @@ namespace Ratchet.Commands;
 internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<DryRunCommand> logger) : ICommand
 {
     private const string DefaultOutputFile = "ratchet-plan.sql";
-    public string Name => "dryrun";
+    public string Name => CommandNames.DryRun;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {

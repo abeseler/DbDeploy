@@ -4,7 +4,7 @@ namespace Ratchet.Commands;
 
 internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<UpdateCommand> logger) : ICommand
 {
-    public string Name => "update";
+    public string Name => CommandNames.Update;
 
     public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
     {

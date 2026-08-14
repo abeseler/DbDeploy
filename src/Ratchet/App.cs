@@ -1,6 +1,6 @@
 namespace Ratchet;
 
-internal sealed class App(Repository repository, IEnumerable<ICommand> commands, IOptions<Settings> settings, ILogger<App> logger)
+internal sealed class App(Repository repository, CommandResolver commands, IOptions<Settings> settings, ILogger<App> logger)
 {
     private long _startedTimestamp;
     public async Task RunAsync(CancellationToken stoppingToken = default)
@@ -16,6 +16,14 @@ internal sealed class App(Repository repository, IEnumerable<ICommand> commands,
             }
 
             Environment.ExitCode = 0;
+            return;
+        }
+
+        if (CommandNames.TryNormalize(settings.Value.Command, out var commandName) is false)
+        {
+            Environment.ExitCode = 1;
+            logger.LogError("Command '{Command}' is invalid", settings.Value.Command);
+            Usage.Write();
             return;
         }
 
@@ -47,13 +55,7 @@ internal sealed class App(Repository repository, IEnumerable<ICommand> commands,
             }
         }
 
-        if (commands.FirstOrDefault(c => c.Name.Equals(settings.Value.Command, StringComparison.OrdinalIgnoreCase)) is not { } command)
-        {
-            Environment.ExitCode = 1;
-            logger.LogError("Command '{Command}' is invalid", settings.Value.Command);
-            Usage.Write();
-            return;
-        }
+        var command = commands.Resolve(commandName);
         var result = await command.ExecuteAsync(stoppingToken);
         var duration = Stopwatch.GetElapsedTime(_startedTimestamp);
 

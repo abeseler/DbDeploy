@@ -13,15 +13,18 @@ internal static class Usage
 
     public static void Write() => Console.WriteLine(Text);
 
-    public const string Text = """
+    private static readonly string CommandList = string.Join("|", CommandNames.All);
+    private static readonly string CommandCsv = string.Join(", ", CommandNames.All);
+
+    public static string Text => $"""
         Ratchet — SQL-first database migrations
 
         Usage:
-          ratchet --command <update|status|baseline|repair|dryrun> [options]
+          ratchet --command <{CommandList}> [options]
           ratchet --help
 
         Options:
-          --command <name>            Command to run: update, status, baseline, repair, dryrun
+          --command <name>            Command to run: {CommandCsv}
           --migrations <path>         Directory containing the starting file and SQL. Default: Migrations
           --startingFile <file>       Starting file (json include list, or a single .sql file). Default: ratchet.json
           --provider <name>           Database provider: postgres, mssql, sqlite

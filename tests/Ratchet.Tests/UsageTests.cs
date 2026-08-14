@@ -1,3 +1,4 @@
+using Ratchet.Commands;
 using Ratchet.Common;
 using Xunit;
 
@@ -30,4 +31,11 @@ public sealed class UsageTests
     [InlineData("update")]
     public void IsHelpCommand_IsFalseOtherwise(string? command) =>
         Assert.False(Usage.IsHelpCommand(command));
+
+    [Fact]
+    public void Text_ListsEveryRegisteredCommand()
+    {
+        foreach (var command in CommandNames.All)
+            Assert.Contains(command, Usage.Text);
+    }
 }
