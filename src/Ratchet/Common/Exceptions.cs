@@ -5,6 +5,8 @@ internal static class Exceptions
     public static Exception FailedToAcquireLock => new("Failed to acquire deployment lock");
     public static Exception FileDoesNotExist => new("File does not exist");
     public static Exception PathDoesNotExist => new("Path does not exist");
+    public static Exception StartingFileDoesNotExist(string path) => new($"Starting file does not exist: {path}");
+    public static Exception StartingFileExtensionNotSupported(string extension) => new($"Starting file extension is not supported: {extension}");
     public static Exception FileIsEmpty => new("File has no migrations");
     public static Exception FileParsingError => new("Error parsing file");
     public static Exception DuplicateTitle(string title) => new($"Duplicate migration title: [{title}]");

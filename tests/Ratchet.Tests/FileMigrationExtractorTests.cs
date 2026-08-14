@@ -65,6 +65,40 @@ public sealed class FileMigrationExtractorTests : IDisposable
     }
 
     [Fact]
+    public void Extract_ReturnsError_WhenStartingFileIsMissing()
+    {
+        var (migrations, error) = Extract("missing.json");
+
+        Assert.Null(migrations);
+        Assert.NotNull(error);
+        Assert.Contains("missing.json", error!.Message);
+    }
+
+    [Fact]
+    public void Extract_ReturnsError_WhenStartingFileExtensionIsUnsupported()
+    {
+        File.WriteAllText(Path.Combine(_root, "notes.txt"), "not a starting file");
+
+        var (migrations, error) = Extract("notes.txt");
+
+        Assert.Null(migrations);
+        Assert.NotNull(error);
+        Assert.Contains(".txt", error!.Message);
+    }
+
+    [Fact]
+    public void Extract_ReturnsError_WhenStartingFileJsonIsInvalid()
+    {
+        File.WriteAllText(Path.Combine(_root, "start.json"), "{ not json");
+
+        var (migrations, error) = Extract("start.json");
+
+        Assert.Null(migrations);
+        Assert.NotNull(error);
+        Assert.Contains("parsing starting file", error!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Extract_UsesDefaultStartingFileWhenNotSpecified()
     {
         WriteSql(Path.Combine(_root, "ok.sql"), "ok:create");

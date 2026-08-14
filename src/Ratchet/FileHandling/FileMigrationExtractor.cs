@@ -23,19 +23,26 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
 
         if (startingFile.Exists is false)
         {
-            logger.LogCritical("{Error}: {StartingFile}", Exceptions.FileDoesNotExist.Message, startingFile.FullName);
-            throw new FileNotFoundException($"Starting file does not exist: {startingFileName}");
+            logger.LogError("{Error}: {StartingFile}", Exceptions.FileDoesNotExist.Message, startingFile.FullName);
+            return Exceptions.StartingFileDoesNotExist(startingFileName);
         }
 
         var migrationIncludes = new List<MigrationIncludes>();
         var migrations = new MigrationCollection();
         if (startingFile.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
         {
-            using var reader = startingFile.OpenRead();
-            var parsedIncludes = JsonSerializer.Deserialize<MigrationIncludes[]>(reader, _options);
-
-            if (parsedIncludes is { })
-                migrationIncludes.AddRange(parsedIncludes);
+            try
+            {
+                using var reader = startingFile.OpenRead();
+                var parsedIncludes = JsonSerializer.Deserialize<MigrationIncludes[]>(reader, _options);
+                if (parsedIncludes is { })
+                    migrationIncludes.AddRange(parsedIncludes);
+            }
+            catch (JsonException ex)
+            {
+                logger.LogError("{Error}: {StartingFile}\n{Message}", Exceptions.FileParsingError.Message, startingFile.FullName, ex.Message);
+                return new Exception($"Error parsing starting file: {ex.Message}");
+            }
         }
         else if (startingFile.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
         {
@@ -46,7 +53,8 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         }
         else
         {
-            throw new NotSupportedException($"Starting file extension is not supported: {startingFile.Extension}");
+            logger.LogError("{Error}: {StartingFile}", Exceptions.StartingFileExtensionNotSupported(startingFile.Extension).Message, startingFile.FullName);
+            return Exceptions.StartingFileExtensionNotSupported(startingFile.Extension);
         }
 
         var errorCount = 0;
