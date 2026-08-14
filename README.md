@@ -23,7 +23,7 @@ Locally, the defaults are a `Migrations` working directory and `ratchet.json` in
 
 Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that worked and dropping the parts that added friction. A few principles shape it:
 
-- **It applies whatever the starting file lists. It was designed for one file per object.** You can use it the Flyway way: one `Migrations` folder full of versioned files whose names guarantee ordering. I prefer a different model — point it at your existing *object folders* (Tables, Views, Stored Procedures) and let those files *be* the migrations.
+- **It applies whatever the starting file lists. It was designed for one file per object.** Folder names and layout are yours — the tool does not require `01_tables` prefixes or a particular tree. I recommend one folder per object type, included in dependency order, but you can just as well point it at a single Flyway-style dump. The cost of that freedom is that **you** list the folders in apply order. The include array is the dependency gate, not the filesystem.
 
 - **Your object folders can *be* your migrations.** A common pattern is to keep a folder of object definitions *and* a separate folder of migration/rollback scripts that duplicate those changes — two representations of the same change kept in sync by hand. Ratchet makes the second folder optional: point it at your object folders and the files in them are the migrations. One source of truth.
 
@@ -35,7 +35,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 - **Roll-forward only — on purpose.** Rollback scripts are often sold as a safety net, but that safety is partly an illusion. A rollback restores *structure*, not *data*: drop a column and the "undo" can add the column back, but the values are gone. Rollback SQL can also fail exactly like forward SQL — a bug, a lock, a timeout — and, because Ratchet doesn't parse SQL, a "down" script is no more verifiable than any other migration. An automated rollback would therefore imply a guarantee that doesn't actually exist. When a deployment goes sideways, the right response is human judgment, not a canned reverse script: sometimes it's a syntax error you fix in the migration and re-apply; sometimes an expert has to look at the failure and decide — hand-edit the database into a good state, or write new migrations that correct forward. There is no single guaranteed answer, so Ratchet doesn't pretend to offer one.
 
-- **Ordering is by convention first, with explicit overrides.** Because the tool doesn't understand your SQL, it can't *infer* dependencies. The default order comes from the starting file's include order and alphabetical order within a folder — so you group by dependency (for example, a separate folder for foreign keys applied after all tables exist, or a `Views2` folder for views that reference other views). When convention isn't enough, a migration can declare an explicit `dependsOn` (see [Dependencies](#dependencies)). That stays true to the no-parse philosophy: `dependsOn` is ordering *metadata* you declare, not something inferred from the SQL.
+- **Ordering is by convention first, with explicit overrides.** Because the tool doesn't understand your SQL, it can't *infer* dependencies. The default order is the include list, then alphabetical **within a single folder** — not a walk of child folders. If `dbo` contains `Tables` and `ForeignKeys`, include those two paths (tables first). Recursing `dbo` would apply foreign keys in some implicit name order, often before the tables exist. Numbered prefixes (`01_tables`, `02_views`) have the same hole: the folder you need *between* them has nowhere to go. An explicit list does not. When folder order is not enough, a migration can declare `dependsOn` (see [Dependencies](#dependencies)) — ordering *metadata* you declare, not something inferred from the SQL.
 
 ## Commands
 
@@ -164,9 +164,9 @@ The starting file is a JSON array of includes. Files and directories in `include
 - `contextRequired`: If `true`, the include is skipped when no contexts are passed at all. Default is `false`.
 - `errorIfMissingOrEmpty`: If `true` (the default), a missing file or directory fails the run. An empty directory is not an error; an included SQL file with no migration blocks is.
 
-Migrations run in include order. Files in a directory run in alphabetical order. Directories are not walked recursively.
+Migrations run in include order. Files in a directory run in alphabetical order. Directories are **not** walked recursively: list each folder you want applied, in the order it should run (`dbo/Tables`, then `dbo/ForeignKeys`, not `dbo`). That is how you stay in charge of names and of “in between” stages — you insert a line in the array instead of renaming everything.
 
-The layout I recommend is one folder per object type (Tables, Views, Stored Procedures, …) and one file per object, with folders included in dependency order (Tables before Views).
+The layout I recommend is one folder per object type (Tables, Views, Stored Procedures, …) and one file per object, with those folders listed in dependency order. A single `all_migrations` folder of versioned files is fine too. The tool does not care what you call them.
 
 ## Migrations
 
