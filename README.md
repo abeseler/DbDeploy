@@ -70,7 +70,7 @@ Ratchet holds a **session-scoped lock** for the duration of a deployment so that
 
 The `__migration_lock` table is still written as an audit trail (and to allocate a `deployment_id`), but it no longer controls mutual exclusion, so an abandoned `finished_on IS NULL` row from a killed run is harmless.
 
-The lock is acquired only for the database phase of a run — migration files are parsed beforehand, so a large migration set does not hold the lock while parsing.
+The lock is acquired only for the database phase of a run — migration files are parsed beforehand, so a large migration set does not hold the lock while parsing. After the lock is taken, history is loaded once and used both to resolve `dependsOn` (including already-applied files that have been deleted) and to build the apply / baseline / repair plan.
 
 `--maxLockWait` bounds how long Ratchet waits for a contended lock. For PostgreSQL and MSSQL this is honored precisely. For SQLite it is best-effort: because the SQLite lock is a file lock that also blocks table setup, a competing deployment waits for the other to finish rather than timing out exactly.
 

@@ -141,7 +141,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
             Options.Create(settings),
             NullLogger<FileMigrationExtractor>.Instance);
 
-        return extractor.ExtractFromStartingFile([], CancellationToken.None);
+        return extractor.ExtractFromStartingFile(CancellationToken.None);
     }
 
     private static void WriteSql(string path, string title) =>

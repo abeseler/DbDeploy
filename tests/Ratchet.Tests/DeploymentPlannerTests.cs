@@ -63,6 +63,26 @@ public sealed class DeploymentPlannerTests
     }
 
     [Fact]
+    public void Prepare_OrdersThenClassifies_UsingTheSameHistories()
+    {
+        var appliedDep = History("Tables/orders.sql", "orders", hash: "orders");
+        var histories = new Dictionary<string, MigrationHistory> { [appliedDep.MigrationId] = appliedDep };
+        var migrations = new List<Migration>
+        {
+            New("Fks/fk.sql", "fk", hash: "fk", dependsOn: ["Tables/orders.sql"]),
+            New("Tables/orders.sql", "orders", hash: "orders")
+        };
+
+        var (plan, error) = DeploymentPlanner.Prepare(migrations, histories, []);
+
+        Assert.Null(error);
+        Assert.NotNull(plan);
+        Assert.Equal(["Tables/orders.sql [orders]", "Fks/fk.sql [fk]"], plan!.Resolved.Select(m => m.Id));
+        Assert.Equal(["Fks/fk.sql [fk]"], plan.ToApply.Select(p => p.Migration.Id));
+        Assert.Empty(plan.ToRepair);
+    }
+
+    [Fact]
     public void Build_DoesNotTreatMatchingHashAsPending()
     {
         var history = History("t.sql", "t", hash: "abc");
@@ -77,13 +97,14 @@ public sealed class DeploymentPlannerTests
         Assert.Equal(["t.sql [t]"], plan.Resolved.Select(m => m.Id));
     }
 
-    private static Migration New(string file, string title, string hash = "h", string[]? contextFilter = null, bool runOnChange = false, bool runAlways = false) => new()
+    private static Migration New(string file, string title, string hash = "h", string[]? contextFilter = null, bool runOnChange = false, bool runAlways = false, string[]? dependsOn = null) => new()
     {
         FileName = file,
         Title = title,
         SqlStatements = ["select 1;"],
         Hash = hash,
         ContextFilter = contextFilter ?? [],
+        DependsOn = dependsOn ?? [],
         RunOnChange = runOnChange,
         RunAlways = runAlways
     };

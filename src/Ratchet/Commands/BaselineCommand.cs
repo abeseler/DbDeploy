@@ -10,9 +10,7 @@ internal sealed class BaselineCommand(FileMigrationExtractor extractor, Reposito
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var appliedHistories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. appliedHistories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
-
+        var (parsed, extractionError) = extractor.ExtractFromStartingFile(stoppingToken);
         if (extractionError is not null)
             return extractionError;
 
@@ -22,7 +20,10 @@ internal sealed class BaselineCommand(FileMigrationExtractor extractor, Reposito
                 return Exceptions.FailedToAcquireLock;
 
             var histories = await repo.GetAllMigrationHistories(stoppingToken);
-            var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
+            var (plan, planError) = DeploymentPlanner.Prepare(parsed!.Values.ToList(), histories, settings.Value.ParseContexts());
+            if (planError is not null)
+                return planError;
+            ArgumentNullException.ThrowIfNull(plan);
 
             foreach (var (migration, history) in plan.ToBaseline)
             {

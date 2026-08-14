@@ -10,13 +10,15 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
     {
         logger.LogInformation("Executing {Command} command", Name);
 
-        var histories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (migrations, extractionError) = extractor.ExtractFromStartingFile([.. histories.Values.Select(h => new AppliedMigration(h.FileName, h.Title))], stoppingToken);
-
+        var (parsed, extractionError) = extractor.ExtractFromStartingFile(stoppingToken);
         if (extractionError is not null)
             return extractionError;
 
-        var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
+        var histories = await repo.GetAllMigrationHistories(stoppingToken);
+        var (plan, planError) = DeploymentPlanner.Prepare(parsed!.Values.ToList(), histories, settings.Value.ParseContexts());
+        if (planError is not null)
+            return planError;
+        ArgumentNullException.ThrowIfNull(plan);
         foreach (var (migration, _) in plan.ToRepair)
             logger.LogWarning("Needs repair: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 

@@ -16,6 +16,19 @@ internal readonly record struct PlannedMigration(Migration Migration, MigrationH
 
 internal static class DeploymentPlanner
 {
+    public static Result<DeploymentPlan> Prepare(
+        IReadOnlyList<Migration> parsed,
+        IReadOnlyDictionary<string, MigrationHistory> histories,
+        string[] contexts)
+    {
+        var applied = histories.Values.Select(h => new AppliedMigration(h.FileName, h.Title)).ToList();
+        var (ordered, error) = MigrationOrderResolver.Resolve(parsed, contexts, applied);
+        if (error is not null)
+            return error;
+
+        return Build(ordered!, histories, contexts);
+    }
+
     public static DeploymentPlan Build(
         IEnumerable<Migration> migrations,
         IReadOnlyDictionary<string, MigrationHistory> histories,
