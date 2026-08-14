@@ -17,18 +17,19 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
             return extractionError;
 
         var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
-        foreach (var migration in plan.InvalidChanges)
-            logger.LogWarning("Validation error: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
+        foreach (var (migration, _) in plan.ToRepair)
+            logger.LogWarning("Needs repair: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
         logger.LogInformation("""
             Deployment Results:
 
                 Pending Apply       =  {Applied}
                 Previously applied  =  {PreviouslyApplied}
-                Pending Sync        =  {Synced}
+                Pending Baseline    =  {Baseline}
+                Needs Repair        =  {Repair}
                 Filtered out        =  {FilteredOut}
 
-            """, plan.ToApply.Count, plan.HistoryCount, plan.ToSync.Count, plan.FilteredOut.Count);
+            """, plan.ToApply.Count, plan.HistoryCount, plan.ToBaseline.Count, plan.ToRepair.Count, plan.FilteredOut.Count);
 
         return Success.Default;
     }

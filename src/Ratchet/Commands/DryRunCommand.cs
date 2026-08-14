@@ -18,8 +18,8 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
             return extractionError;
 
         var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
-        foreach (var migration in plan.InvalidChanges)
-            logger.LogWarning("Validation error: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
+        foreach (var (migration, _) in plan.ToRepair)
+            logger.LogWarning("Needs repair: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
         var outputPath = ResolveOutputPath();
         await WritePlan(outputPath, plan, stoppingToken);
@@ -29,12 +29,13 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
 
                 Pending Apply       =  {Applied}
                 Previously applied  =  {PreviouslyApplied}
-                Pending Sync        =  {Synced}
+                Pending Baseline    =  {Baseline}
+                Needs Repair        =  {Repair}
                 Filtered out        =  {FilteredOut}
 
                 Plan written to     =  {OutputFile}
 
-            """, plan.ToApply.Count, plan.HistoryCount, plan.ToSync.Count, plan.FilteredOut.Count, outputPath);
+            """, plan.ToApply.Count, plan.HistoryCount, plan.ToBaseline.Count, plan.ToRepair.Count, plan.FilteredOut.Count, outputPath);
 
         return Success.Default;
     }

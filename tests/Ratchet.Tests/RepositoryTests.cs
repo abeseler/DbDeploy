@@ -101,6 +101,39 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task BaselineMigrationHistory_RecordsHashWithoutSequence()
+    {
+        var repo = await OpenRepository();
+        var migration = Ok("old.sql", "old");
+
+        await repo.BaselineMigrationHistory(migration, null);
+        var history = (await repo.GetAllMigrationHistories())[migration.Id];
+
+        Assert.Equal(1, repo.MigrationsBaselined);
+        Assert.Equal("old", history.Hash);
+        Assert.Null(history.ExecutedSequence);
+        Assert.Equal(0, repo.MigrationsApplied);
+    }
+
+    [Fact]
+    public async Task RepairMigrationHistory_UpdatesHashAndPreservesSequence()
+    {
+        var repo = await OpenRepository();
+        var original = Ok("t.sql", "t");
+        Assert.True((await repo.ApplyMigration(original, null)).Succeeded);
+        var history = (await repo.GetAllMigrationHistories())[original.Id];
+        Assert.Equal(1, history.ExecutedSequence);
+
+        var edited = original with { Hash = "edited" };
+        await repo.RepairMigrationHistory(edited, history);
+
+        var repaired = (await repo.GetAllMigrationHistories())[original.Id];
+        Assert.Equal(1, repo.MigrationsRepaired);
+        Assert.Equal("edited", repaired.Hash);
+        Assert.Equal(1, repaired.ExecutedSequence);
+    }
+
+    [Fact]
     public async Task ApplyMigration_FailDoesNotRecordOrCountAsApplied()
     {
         var repo = await OpenRepository();

@@ -24,8 +24,8 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
             var histories = await repo.GetAllMigrationHistories(stoppingToken);
             var plan = DeploymentPlanner.Build(migrations!.Values, histories, settings.Value.ParseContexts());
 
-            if (plan.InvalidChanges is [{ } invalid, ..])
-                return Exceptions.MigrationHasInvalidChange(invalid.Id);
+            if (plan.ToRepair is [{ } invalid, ..])
+                return Exceptions.MigrationHasInvalidChange(invalid.Migration.Id);
 
             var result = await ExecutePlan(plan, stoppingToken);
             if (result.Succeeded)
@@ -34,12 +34,11 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
 
                       Applied             =  {Applied}
                       Previously applied  =  {PreviouslyApplied}
-                      Synced              =  {Synced}
                       Skipped             =  {Skipped}
                       Marked              =  {Marked}
                       Filtered out        =  {FilteredOut}
 
-                    """, repo.MigrationsApplied, plan.HistoryCount, repo.MigrationsSynced, repo.MigrationsSkipped, repo.MigrationsMarked, plan.FilteredOut.Count);
+                    """, repo.MigrationsApplied, plan.HistoryCount, repo.MigrationsSkipped, repo.MigrationsMarked, plan.FilteredOut.Count);
 
             return result;
         }
@@ -51,13 +50,6 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
 
     private async Task<Result<Success>> ExecutePlan(DeploymentPlan plan, CancellationToken stoppingToken)
     {
-        foreach (var (migration, history) in plan.ToSync)
-        {
-            stoppingToken.ThrowIfCancellationRequested();
-            logger.LogInformation("Syncing migration: {MigrationId}", migration.Id);
-            await repo.SyncMigrationHistory(migration, history, stoppingToken);
-        }
-
         var migrationsProcessed = 0;
         foreach (var (migration, history) in plan.ToApply)
         {

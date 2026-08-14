@@ -10,12 +10,12 @@ public sealed class DeploymentPlannerTests
     {
         var applied = History("keep.sql", "keep", hash: "keep");
         var drifted = History("drift.sql", "drift", hash: "old");
-        var pendingSync = History("sync.sql", "sync", hash: null);
+        var pendingBaseline = History("legacy.sql", "legacy", hash: null);
         var histories = new Dictionary<string, MigrationHistory>
         {
             [applied.MigrationId] = applied,
             [drifted.MigrationId] = drifted,
-            [pendingSync.MigrationId] = pendingSync
+            [pendingBaseline.MigrationId] = pendingBaseline
         };
 
         var migrations = new List<Migration>
@@ -23,16 +23,16 @@ public sealed class DeploymentPlannerTests
             New("seed.sql", "seed", contextFilter: ["prod"]),
             New("keep.sql", "keep", hash: "keep"),
             New("drift.sql", "drift", hash: "new"),
-            New("sync.sql", "sync", hash: "sync"),
+            New("legacy.sql", "legacy", hash: "legacy"),
             New("new.sql", "new", hash: "new")
         };
 
         var plan = DeploymentPlanner.Build(migrations, histories, ["dev"]);
 
         Assert.Equal(["seed.sql [seed]"], plan.FilteredOut.Select(m => m.Id));
-        Assert.Equal(["keep.sql [keep]", "drift.sql [drift]", "sync.sql [sync]", "new.sql [new]"], plan.Resolved.Select(m => m.Id));
-        Assert.Equal(["sync.sql [sync]"], plan.ToSync.Select(p => p.Migration.Id));
-        Assert.Equal(["drift.sql [drift]"], plan.InvalidChanges.Select(m => m.Id));
+        Assert.Equal(["keep.sql [keep]", "drift.sql [drift]", "legacy.sql [legacy]", "new.sql [new]"], plan.Resolved.Select(m => m.Id));
+        Assert.Equal(["legacy.sql [legacy]", "new.sql [new]"], plan.ToBaseline.Select(p => p.Migration.Id));
+        Assert.Equal(["drift.sql [drift]"], plan.ToRepair.Select(p => p.Migration.Id));
         Assert.Equal(["new.sql [new]"], plan.ToApply.Select(p => p.Migration.Id));
         Assert.Equal(3, plan.HistoryCount);
     }
@@ -45,7 +45,7 @@ public sealed class DeploymentPlannerTests
 
         var plan = DeploymentPlanner.Build([migration], new Dictionary<string, MigrationHistory> { [history.MigrationId] = history }, []);
 
-        Assert.Empty(plan.InvalidChanges);
+        Assert.Empty(plan.ToRepair);
         Assert.Equal(["view.sql [view]"], plan.ToApply.Select(p => p.Migration.Id));
         Assert.Same(history, plan.ToApply[0].History);
     }
@@ -58,7 +58,7 @@ public sealed class DeploymentPlannerTests
 
         var plan = DeploymentPlanner.Build([migration], new Dictionary<string, MigrationHistory> { [history.MigrationId] = history }, []);
 
-        Assert.Empty(plan.InvalidChanges);
+        Assert.Empty(plan.ToRepair);
         Assert.Equal(["seed.sql [seed]"], plan.ToApply.Select(p => p.Migration.Id));
     }
 
@@ -71,8 +71,8 @@ public sealed class DeploymentPlannerTests
         var plan = DeploymentPlanner.Build([migration], new Dictionary<string, MigrationHistory> { [history.MigrationId] = history }, []);
 
         Assert.Empty(plan.ToApply);
-        Assert.Empty(plan.ToSync);
-        Assert.Empty(plan.InvalidChanges);
+        Assert.Empty(plan.ToBaseline);
+        Assert.Empty(plan.ToRepair);
         Assert.Empty(plan.FilteredOut);
         Assert.Equal(["t.sql [t]"], plan.Resolved.Select(m => m.Id));
     }

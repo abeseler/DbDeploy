@@ -9,7 +9,8 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
     private IDbConnection? _lockConnection;
     private int _lastExecutedSequence;
     public int MigrationsApplied { get; private set; } = 0;
-    public int MigrationsSynced { get; private set; } = 0;
+    public int MigrationsBaselined { get; private set; } = 0;
+    public int MigrationsRepaired { get; private set; } = 0;
     public int MigrationsSkipped { get; private set; } = 0;
     public int MigrationsMarked { get; private set; } = 0;
 
@@ -138,7 +139,7 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         history.ExecutedSequence = ++_lastExecutedSequence;
     }
 
-    public async Task SyncMigrationHistory(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
+    public async Task BaselineMigrationHistory(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
     {
         var hasExistingHistoryRecord = migrationHistory is not null;
         migrationHistory ??= new()
@@ -155,7 +156,24 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         try
         {
             await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory);
-            MigrationsSynced++;
+            MigrationsBaselined++;
+        }
+        finally
+        {
+            if (dispose) connection.Dispose();
+        }
+    }
+
+    public async Task RepairMigrationHistory(Migration migration, MigrationHistory history, CancellationToken stoppingToken = default)
+    {
+        history.Hash = migration.Hash;
+        history.DeploymentId = _migrationLock?.DeploymentId;
+
+        var (connection, dispose) = await Lease(stoppingToken);
+        try
+        {
+            await connection.ExecuteAsync(dbProvider.UpdateMigrationHistory, history);
+            MigrationsRepaired++;
         }
         finally
         {

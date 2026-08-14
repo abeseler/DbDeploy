@@ -4,9 +4,9 @@ internal sealed class DeploymentPlan
 {
     public required IReadOnlyList<Migration> Resolved { get; init; }
     public required IReadOnlyList<PlannedMigration> ToApply { get; init; }
-    public required IReadOnlyList<PlannedMigration> ToSync { get; init; }
+    public required IReadOnlyList<PlannedMigration> ToBaseline { get; init; }
+    public required IReadOnlyList<PlannedMigration> ToRepair { get; init; }
     public required IReadOnlyList<Migration> FilteredOut { get; init; }
-    public required IReadOnlyList<Migration> InvalidChanges { get; init; }
     public required IReadOnlyDictionary<string, MigrationHistory> Histories { get; init; }
 
     public int HistoryCount => Histories.Count;
@@ -23,9 +23,9 @@ internal static class DeploymentPlanner
     {
         var resolved = new List<Migration>();
         var toApply = new List<PlannedMigration>();
-        var toSync = new List<PlannedMigration>();
+        var toBaseline = new List<PlannedMigration>();
+        var toRepair = new List<PlannedMigration>();
         var filteredOut = new List<Migration>();
-        var invalidChanges = new List<Migration>();
 
         foreach (var migration in migrations)
         {
@@ -40,12 +40,15 @@ internal static class DeploymentPlanner
 
             if (history is { Hash: null })
             {
-                toSync.Add(new(migration, history));
+                toBaseline.Add(new(migration, history));
                 continue;
             }
 
+            if (history is null)
+                toBaseline.Add(new(migration, history));
+
             if (migration.HasInvalidChange(history))
-                invalidChanges.Add(migration);
+                toRepair.Add(new(migration, history));
 
             if (history is null || migration.RunAlways || (migration.RunOnChange && history.Hash != migration.Hash))
                 toApply.Add(new(migration, history));
@@ -55,9 +58,9 @@ internal static class DeploymentPlanner
         {
             Resolved = resolved,
             ToApply = toApply,
-            ToSync = toSync,
+            ToBaseline = toBaseline,
+            ToRepair = toRepair,
             FilteredOut = filteredOut,
-            InvalidChanges = invalidChanges,
             Histories = histories
         };
     }

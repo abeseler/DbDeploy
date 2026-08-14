@@ -17,11 +17,11 @@ internal static class Usage
         Ratchet — SQL-first database migrations
 
         Usage:
-          ratchet --command <update|status|sync|dryrun> [options]
+          ratchet --command <update|status|baseline|repair|dryrun> [options]
           ratchet --help
 
         Options:
-          --command <name>            Command to run: update, status, sync, dryrun
+          --command <name>            Command to run: update, status, baseline, repair, dryrun
           --migrations <path>         Directory containing the starting file and SQL. Default: Migrations
           --startingFile <file>       Starting file (json include list, or a single .sql file). Default: ratchet.json
           --provider <name>           Database provider: postgres, mssql, sqlite

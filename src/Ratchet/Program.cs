@@ -64,7 +64,8 @@ services.AddSingleton<App>();
 
 services.AddSingleton<FileMigrationExtractor>();
 services.AddSingleton<ICommand, StatusCommand>();
-services.AddSingleton<ICommand, SyncCommand>();
+services.AddSingleton<ICommand, BaselineCommand>();
+services.AddSingleton<ICommand, RepairCommand>();
 services.AddSingleton<ICommand, UpdateCommand>();
 services.AddSingleton<ICommand, DryRunCommand>();
 

@@ -42,9 +42,10 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database.
 
-- **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command. The summary reports how many were applied, synced, skipped (`onError: Skip`), marked (`onError: Mark`), and filtered out.
-- **`status`** — Report how many migrations are pending, already applied, would be synced, or filtered out by context. Read-only; applies nothing and takes no lock. Checksum mismatches are logged as warnings (they fail `update`).
-- **`sync`** — Record migrations as **already applied without running their SQL**. Use this to baseline a database whose schema already exists (for example, when adopting Ratchet on an established database) so those migrations are not re-run on the next `update`.
+- **`update`** — Apply all pending migrations in resolved order. This is the normal deployment command. It runs SQL; it does not write history for migrations it did not apply. The summary reports how many were applied, skipped (`onError: Skip`), marked (`onError: Mark`), and filtered out. Checksum drift fails the run — see `repair`.
+- **`status`** — Report pending apply, pending baseline, needs repair, already applied, and filtered-out counts. Read-only; applies nothing and takes no lock. Checksum mismatches are logged as "needs repair" (they fail `update`).
+- **`baseline`** — Record migrations that have **no history row** (or a leftover null hash) as already applied, **without running SQL**. Use this when adopting Ratchet on a database whose schema already exists. It will not overwrite an existing hash — that is `repair`.
+- **`repair`** — Update the stored hash of migrations that **already have a history row** whose SQL no longer matches. Use this after you have fixed the database by hand and accept the current files as the new truth. It does not insert missing rows — that is `baseline`. It does not run SQL.
 - **`dryrun`** — Like `status`, but also writes the exact SQL that `update` would run to a plan file for review. Applies nothing and takes no lock. See [Dry Run](#dry-run).
 
 ## Deployment Semantics
@@ -55,7 +56,8 @@ Understanding a few core behaviors will help you use Ratchet safely:
 - **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration. A failure to connect to the database after the configured retries also exits non-zero.
 - **`onError: Skip` is not a success.** A skipped migration is logged, is **not** recorded as applied, does **not** consume an apply sequence number, and will be retried on the next run. `onError: Mark` records the migration as applied (and sequences it) so it will not be retried. The `update` summary counts Applied, Skipped, and Marked separately.
 - **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
-- **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes the deployment to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check.
+- **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes `update` to fail validation (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. Note the hash is sensitive to the SQL text, so even reformatting/whitespace-only edits to an already-applied migration will trip this check. If the database already matches the edited file, run `repair` to accept the new hash.
+- **Writing history without SQL is never implicit.** `update` only records migrations it actually applied (or `onError: Mark`). Stamping existing schema is `baseline`. Accepting a new hash for something already recorded is `repair`.
 - **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `runOnChange` / `runAlways` migration keeps its original sequence so dry-run reorder detection still reflects first-apply order.
 
 ### Deployment Lock
@@ -74,17 +76,39 @@ The lock is acquired only for the database phase of a run — migration files ar
 
 ### Dry Run
 
-The `dryrun` command reports the same pending/applied/synced/filtered counts as `status`, but also writes the SQL that *would* be applied to a plan file (`--outputFile`, default `ratchet-plan.sql`). It does not acquire the deployment lock and applies nothing.
+The `dryrun` command reports the same pending apply / baseline / repair / filtered counts as `status`, but also writes the SQL that *would* be applied to a plan file (`--outputFile`, default `ratchet-plan.sql`). It does not acquire the deployment lock and applies nothing.
 
 This is useful as a review/approval gate in a pipeline: generate the plan, publish it as an artifact for a human to review, then run `update` once approved.
 
-The plan reflects the exact execution order and applies the same context filtering as a real deployment, so it only contains the migrations that would actually run. Each migration is annotated with its identity and its `runInTransaction`, `timeout` and `onError` settings. Only pending migrations are included; migrations that would be marked as applied without executing (see `sync`) are counted but not written.
+The plan reflects the exact execution order and applies the same context filtering as a real deployment, so it only contains the migrations that `update` would actually run. Each migration is annotated with its identity and its `runInTransaction`, `timeout` and `onError` settings. Pending baseline and needs-repair counts are reported but those migrations are not written to the plan file.
+
+### Baseline vs Repair
+
+Both commands write `__migration_history` and run no SQL. They refuse to do each other's job.
+
+**Adopt Ratchet on an existing database** — the schema is already there, history is empty (or some folders were never recorded):
+
+1. `baseline` — insert history for in-context migrations that have no row (or a leftover null hash). `executed_sequence` stays null; Ratchet did not apply these.
+2. `status` — pending apply should be 0 (unless you also have `runAlways` / `runOnChange` files).
+3. Later, add a new migration block and `update` — only the new block runs.
+
+`repair` on an empty journal is a no-op. If you skip `baseline`, the next `update` will try to run `CREATE TABLE` against objects that already exist.
+
+**Unstick after a hand-fix** — a deploy failed, someone fixed the database (and maybe the file), and you want the journal to match:
+
+1. `repair` — overwrite hashes of already-recorded migrations whose SQL changed. Existing `executed_sequence` is kept. Each id is logged with previous and current hash.
+2. If a hotfix file was applied by hand and never recorded, `baseline` that file (it still has no row).
+3. `update` — continues from the first unapplied migration.
+
+`baseline` will not clear checksum drift. `update` still fails until you `repair`.
+
+Both commands take the deployment lock, honor `--contexts`, and can be re-run safely (a second run is a no-op once history matches).
 
 ## Configuration
 
 The configuration can be done via command line arguments. The following arguments are available:
 
-- `--command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
+- `--command`: The command to execute. Possible values are `update`, `status`, `baseline`, `repair` and `dryrun`.
 - `--migrations`: Directory containing the starting file and SQL. Relative paths are resolved from the process working directory. Default is `Migrations`.
 - `--startingFile`: The starting file. This is a json file that contains the files to include, or a single `.sql` file. Default is `ratchet.json` in the working directory.
 - `--help`, `-h`: Print usage and exit.
@@ -105,7 +129,7 @@ The container is available on [Docker Hub](https://hub.docker.com/r/abeseler/rat
 
 You can use the command line arguments above or the following environment variables for configuration:
 
-- `Deploy__Command`: The command to execute. Possible values are `update`, `status`, `sync` and `dryrun`.
+- `Deploy__Command`: The command to execute. Possible values are `update`, `status`, `baseline`, `repair` and `dryrun`.
 - `Deploy__WorkingDirectory`: Directory containing the starting file and SQL. Default is `Migrations`.
 - `Deploy__StartingFile`: The starting file. This is a json file that contains the files to include, or a single `.sql` file. Default is `ratchet.json`.
 - `Deploy__LockWaitMaxSeconds`: The maximum time to wait for the lock in seconds. Default is 120 seconds.
