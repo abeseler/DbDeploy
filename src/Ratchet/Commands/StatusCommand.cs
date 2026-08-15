@@ -19,20 +19,8 @@ internal sealed class StatusCommand(FileMigrationExtractor extractor, Repository
         if (planError is not null)
             return planError;
         ArgumentNullException.ThrowIfNull(plan);
-        foreach (var (migration, _) in plan.ToRepair)
-            logger.LogWarning("Needs repair: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
-        logger.LogInformation("""
-            Deployment Results:
-
-                Pending Apply       =  {Applied}
-                Previously applied  =  {PreviouslyApplied}
-                Pending Baseline    =  {Baseline}
-                Needs Repair        =  {Repair}
-                Filtered out        =  {FilteredOut}
-
-            """, plan.ToApply.Count, plan.HistoryCount, plan.ToBaseline.Count, plan.ToRepair.Count, plan.FilteredOut.Count);
-
+        logger.LogInformation("{Report}", PlanReport.Status(plan));
         return Success.Default;
     }
 }

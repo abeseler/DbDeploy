@@ -32,8 +32,10 @@ public sealed class DeploymentPlannerTests
         Assert.Equal(["seed.sql [seed]"], plan.FilteredOut.Select(m => m.Id));
         Assert.Equal(["keep.sql [keep]", "drift.sql [drift]", "legacy.sql [legacy]", "new.sql [new]"], plan.Resolved.Select(m => m.Id));
         Assert.Equal(["legacy.sql [legacy]", "new.sql [new]"], plan.ToBaseline.Select(p => p.Migration.Id));
+        Assert.Equal(["legacy.sql [legacy]"], plan.PendingBaseline.Select(p => p.Migration.Id));
         Assert.Equal(["drift.sql [drift]"], plan.ToRepair.Select(p => p.Migration.Id));
         Assert.Equal(["new.sql [new]"], plan.ToApply.Select(p => p.Migration.Id));
+        Assert.Equal(1, plan.UpToDateCount);
         Assert.Equal(3, plan.HistoryCount);
     }
 

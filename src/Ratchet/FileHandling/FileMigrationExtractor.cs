@@ -68,7 +68,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                 {
                     logger.LogDebug("Extracting migrations from file: {Include}", path);
                     var file = new FileInfo(fullPath);
-                    if (file.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
+                    if (IsSqlFile(file))
                         ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
                     else
                         logger.LogInformation("Skipping non-SQL file: {Include}", path);
@@ -79,7 +79,15 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                 {
                     logger.LogDebug("Extracting migrations from directory: {Include}", path);
                     foreach (var file in new DirectoryInfo(fullPath).EnumerateFiles().OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (IsSqlFile(file) is false)
+                        {
+                            logger.LogDebug("Skipping non-SQL file in directory {Include}: {File}", path, file.Name);
+                            continue;
+                        }
+
                         ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
+                    }
                     continue;
                 }
 
@@ -118,6 +126,9 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         var relativePath = Normalize(file.FullName.Replace(_workingDirectory, string.Empty));
         return relativePath.StartsWith('/') ? relativePath[1..] : relativePath;
     }
+
+    private static bool IsSqlFile(FileInfo file) =>
+        file.Extension.Equals(".sql", StringComparison.OrdinalIgnoreCase);
 
     private static string Normalize(string? path)
     {

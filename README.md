@@ -42,7 +42,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database.
 
 - **`update`** — Apply pending migrations in resolved order. This is the normal deployment command. It runs SQL and records only what it applied (or `onError: Mark`). Checksum drift fails the run — see `repair`.
-- **`status`** — Print pending apply, pending baseline, needs repair, already applied, and filtered-out counts. Read-only; no lock. Drift is a warning here and a failure on `update`.
+- **`status`** — Print pending apply, pending baseline, needs repair, up to date, and filtered-out counts, with each identity listed. Read-only; no lock. Drift is listed under needs repair here and is a failure on `update`. New files count as pending apply only — pending baseline is leftover history with no hash.
 - **`validate`** — Fail if the files cannot be parsed or ordered, or (when a database is configured) if any applied migration needs `repair`. Pending apply and pending baseline do not fail. See [Validate](#validate).
 - **`dryrun`** — Like `status`, plus the SQL that `update` would run, written to a plan file. See [Dry Run](#dry-run).
 - **`baseline`** — Record migrations that have no history row as already applied, without running SQL. For adopting Ratchet on an existing schema. Does not overwrite an existing hash — that is `repair`.
@@ -52,7 +52,7 @@ Ratchet runs a single command per invocation, selected with `--command` (or `Dep
 
 - **Roll-forward only.** There is no down script. Recovery is a human decision — see [Design & Philosophy](#design--philosophy).
 - **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration. A failure to connect to the database after the configured retries also exits non-zero.
-- **`onError: Skip` is not a success.** A skipped migration is logged, is **not** recorded as applied, does **not** consume an apply sequence number, and will be retried on the next run. `onError: Mark` records the migration as applied (and sequences it) so it will not be retried. The `update` summary counts Applied, Skipped, and Marked separately.
+- **`onError: Skip` is not a success.** A skipped migration is logged, is **not** recorded as applied, does **not** consume an apply sequence number, and will be retried on the next run. `onError: Mark` records the migration as applied (and sequences it) so it will not be retried. The `update` summary lists Applied, Skipped, and Marked separately, with each identity.
 - **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
 - **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes `update` to fail (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. The hash is sensitive to the SQL text, so even reformatting an already-applied migration will trip this check. If the database already matches the edited file, run `repair` to accept the new hash.
 - **Writing history without SQL is never implicit.** `update` only records migrations it actually applied (or `onError: Mark`). Stamping existing schema is `baseline`. Accepting a new hash for something already recorded is `repair`.
@@ -74,15 +74,15 @@ Migration files are parsed **before** the lock is taken, so a large set does not
 
 ### Dry Run
 
-`dryrun` prints the same counts as `status` and writes the SQL that `update` would run to a plan file (`--outputFile`, default `ratchet-plan.sql`). It does not take the lock and applies nothing.
+`dryrun` prints the same report as `status` (counts and identities) and writes the SQL that `update` would run to a plan file (`--outputFile`, default `ratchet-plan.sql`). The plan file header also lists pending-apply, pending-baseline, and needs-repair identities. It does not take the lock and applies nothing.
 
 Use it as a review gate: generate the plan, publish it as an artifact, run `update` once someone has looked at it.
 
-The plan is the same order and context filter as a real `update`. Each block is annotated with its identity and its `runInTransaction`, `timeout`, and `onError` settings. Pending baseline and needs-repair are counted but not written.
+The plan is the same order and context filter as a real `update`. Each block is annotated with its identity and its `runInTransaction`, `timeout`, and `onError` settings. Pending baseline and needs-repair are listed in the header comments; their SQL is not written.
 
 ### Validate
 
-`validate` is a PR gate, not a dress rehearsal for `update`. It fails the process if the starting file or SQL headers cannot be parsed, includes are missing, titles collide, or `dependsOn` is invalid or cyclic. Pending apply and pending baseline do **not** fail — new migrations are expected.
+`validate` is a PR gate, not a dress rehearsal for `update`. It fails the process if the starting file or SQL headers cannot be parsed, includes are missing, titles collide, or `dependsOn` is invalid or cyclic. Pending apply and pending baseline do **not** fail — new migrations are expected. When a database is configured, a passing run prints the same identity listing as `status`.
 
 Without `--connectionString` / `--provider`, only files are checked and no database is opened. With a connection string, checksums are compared to that database's `__migration_history`, and drift fails the run (the same condition that fails `update`). You do not need `validate` in front of `update` in a deploy job; `update` already stops before applying if those problems exist.
 
@@ -159,12 +159,12 @@ The starting file is a JSON array of includes. Files and directories in `include
 ]
 ```
 
-- `include`: Files or directories to include.
+- `include`: Files or directories to include. Directories contribute only `*.sql` files (case-insensitive); other files in the folder are skipped.
 - `contextFilter`: Contexts that must be active for this include. If none of them are provided, the include is skipped.
 - `contextRequired`: If `true`, the include is skipped when no contexts are passed at all. Default is `false`.
 - `errorIfMissingOrEmpty`: If `true` (the default), a missing file or directory fails the run. An empty directory is not an error; an included SQL file with no migration blocks is.
 
-Migrations run in include order. Files in a directory run in alphabetical order. Directories are **not** walked recursively: list each folder you want applied, in the order it should run (`dbo/Tables`, then `dbo/ForeignKeys`, not `dbo`). That is how you stay in charge of names and of “in between” stages — you insert a line in the array instead of renaming everything.
+Migrations run in include order. SQL files in a directory run in alphabetical order. Non-`.sql` files in that directory are skipped, so a `README.md` next to the scripts is harmless. Directories are **not** walked recursively: list each folder you want applied, in the order it should run (`dbo/Tables`, then `dbo/ForeignKeys`, not `dbo`). That is how you stay in charge of names and of “in between” stages — you insert a line in the array instead of renaming everything.
 
 The layout I recommend is one folder per object type (Tables, Views, Stored Procedures, …) and one file per object, with those folders listed in dependency order. A single `all_migrations` folder of versioned files is fine too. The tool does not care what you call them.
 

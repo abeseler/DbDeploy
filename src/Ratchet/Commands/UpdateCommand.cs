@@ -25,22 +25,14 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
                 return planError;
             ArgumentNullException.ThrowIfNull(plan);
 
-            if (plan.ToRepair is [{ } invalid, ..])
-                return Exceptions.MigrationHasInvalidChange(invalid.Migration.Id);
+            if (plan.ToRepair.Count > 0)
+            {
+                foreach (var id in PlanReport.Ids(plan.ToRepair))
+                    logger.LogError("{ErrorMessage}", Exceptions.MigrationHasInvalidChange(id).Message);
+                return Exceptions.UpdateNeedsRepair(plan.ToRepair.Count);
+            }
 
             var result = await ExecutePlan(plan, stoppingToken);
-            if (result.Succeeded)
-                logger.LogInformation("""
-                    Deployment Results:
-
-                      Applied             =  {Applied}
-                      Previously applied  =  {PreviouslyApplied}
-                      Skipped             =  {Skipped}
-                      Marked              =  {Marked}
-                      Filtered out        =  {FilteredOut}
-
-                    """, repo.MigrationsApplied, plan.HistoryCount, repo.MigrationsSkipped, repo.MigrationsMarked, plan.FilteredOut.Count);
-
             return result;
         }
         finally
@@ -51,22 +43,43 @@ internal sealed class UpdateCommand(FileMigrationExtractor extractor, Repository
 
     private async Task<Result<Success>> ExecutePlan(DeploymentPlan plan, CancellationToken stoppingToken)
     {
-        var migrationsProcessed = 0;
+        var applied = new List<string>();
+        var skipped = new List<string>();
+        var marked = new List<string>();
+        var remaining = plan.ToApply.Count;
+
         foreach (var (migration, history) in plan.ToApply)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            logger.LogInformation("Applying migration: {MigrationId}", migration.Id);
+            logger.LogInformation("Applying {MigrationId}", migration.Id);
             var result = await repo.ApplyMigration(migration, history, stoppingToken);
-            var continueToNextMigration = result.Match(
-                onSuccess: _ => true,
-                onFailure: error => false);
+            remaining--;
 
-            if (continueToNextMigration is false)
-                return Exceptions.DeploymentFailed(plan.ToApply.Count - migrationsProcessed);
+            var outcome = result.Match<ApplyOutcome?>(
+                onSuccess: value => value,
+                onFailure: _ => null);
 
-            migrationsProcessed++;
+            if (outcome is null)
+            {
+                logger.LogInformation("{Report}", PlanReport.Update(applied, skipped, marked, plan, succeeded: false, notApplied: remaining + 1));
+                return Exceptions.DeploymentFailed(remaining + 1);
+            }
+
+            switch (outcome)
+            {
+                case ApplyOutcome.Applied:
+                    applied.Add(migration.Id);
+                    break;
+                case ApplyOutcome.Skipped:
+                    skipped.Add(migration.Id);
+                    break;
+                case ApplyOutcome.Marked:
+                    marked.Add(migration.Id);
+                    break;
+            }
         }
 
+        logger.LogInformation("{Report}", PlanReport.Update(applied, skipped, marked, plan, succeeded: true));
         return Success.Default;
     }
 }

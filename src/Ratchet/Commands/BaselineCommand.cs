@@ -25,22 +25,16 @@ internal sealed class BaselineCommand(FileMigrationExtractor extractor, Reposito
                 return planError;
             ArgumentNullException.ThrowIfNull(plan);
 
+            var baselined = new List<string>(plan.ToBaseline.Count);
             foreach (var (migration, history) in plan.ToBaseline)
             {
                 stoppingToken.ThrowIfCancellationRequested();
-                logger.LogInformation("Baselining migration: {MigrationId}", migration.Id);
+                logger.LogInformation("Baselining {MigrationId}", migration.Id);
                 await repo.BaselineMigrationHistory(migration, history, stoppingToken);
+                baselined.Add(migration.Id);
             }
 
-            logger.LogInformation("""
-                Deployment Results:
-
-                  Baselined           =  {Baselined}
-                  Previously applied  =  {PreviouslyApplied}
-                  Filtered out        =  {FilteredOut}
-
-                """, repo.MigrationsBaselined, plan.HistoryCount, plan.FilteredOut.Count);
-
+            logger.LogInformation("{Report}", PlanReport.Baseline(baselined, plan));
             return Success.Default;
         }
         finally

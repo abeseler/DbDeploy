@@ -73,7 +73,7 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
         }
     }
 
-    public async Task<Result<Success>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
+    public async Task<Result<ApplyOutcome>> ApplyMigration(Migration migration, MigrationHistory? migrationHistory, CancellationToken stoppingToken = default)
     {
         var hasExistingHistoryRecord = migrationHistory is not null;
         migrationHistory ??= new()
@@ -100,7 +100,7 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
             transaction?.Commit();
 
             MigrationsApplied++;
-            return Success.Default;
+            return ApplyOutcome.Applied;
         }
         catch (Exception ex)
         {
@@ -108,21 +108,24 @@ internal sealed class Repository(IDatabaseProvider dbProvider, ILogger<Repositor
 
             if (stoppingToken.IsCancellationRequested) throw;
 
-            logger.LogError("Migration failed: {MigrationId}\n\n{ErrorMessage}\n", migration.Id, ex.Message);
-
             if (migration.OnError == Migration.ErrorHandling.Mark)
             {
-                logger.LogWarning("Marking complete because OnError is '{OnError}'", migration.OnError);
+                logger.LogWarning("Marking {MigrationId} as applied because onError is Mark.\n{ErrorMessage}", migration.Id, ex.Message);
                 AssignExecutedSequenceIfNeeded(migrationHistory);
                 await connection.ExecuteAsync(hasExistingHistoryRecord ? dbProvider.UpdateMigrationHistory : dbProvider.InsertMigrationHistory, migrationHistory);
                 MigrationsMarked++;
-            }
-            else if (migration.OnError == Migration.ErrorHandling.Skip)
-            {
-                MigrationsSkipped++;
+                return ApplyOutcome.Marked;
             }
 
-            return migration.OnError == Migration.ErrorHandling.Fail ? new Exception(ex.Message) : Success.Default;
+            if (migration.OnError == Migration.ErrorHandling.Skip)
+            {
+                logger.LogWarning("Skipping {MigrationId} because onError is Skip. It was not recorded and will be retried.\n{ErrorMessage}", migration.Id, ex.Message);
+                MigrationsSkipped++;
+                return ApplyOutcome.Skipped;
+            }
+
+            logger.LogError("Migration failed: {MigrationId}\n\n{ErrorMessage}\n", migration.Id, ex.Message);
+            return new Exception(ex.Message);
         }
         finally
         {

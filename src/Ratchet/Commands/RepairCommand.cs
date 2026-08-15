@@ -25,25 +25,21 @@ internal sealed class RepairCommand(FileMigrationExtractor extractor, Repository
                 return planError;
             ArgumentNullException.ThrowIfNull(plan);
 
+            var repaired = new List<string>();
             foreach (var (migration, history) in plan.ToRepair)
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 if (history is null)
                     continue;
 
-                logger.LogWarning("Repairing migration hash: {MigrationId}\n  previous = {PreviousHash}\n  current  = {CurrentHash}", migration.Id, history.Hash, migration.Hash);
+                logger.LogWarning(
+                    "Repairing {MigrationId}\n  previous = {PreviousHash}\n  current  = {CurrentHash}",
+                    migration.Id, history.Hash, migration.Hash);
                 await repo.RepairMigrationHistory(migration, history, stoppingToken);
+                repaired.Add(migration.Id);
             }
 
-            logger.LogInformation("""
-                Deployment Results:
-
-                  Repaired            =  {Repaired}
-                  Previously applied  =  {PreviouslyApplied}
-                  Filtered out        =  {FilteredOut}
-
-                """, repo.MigrationsRepaired, plan.HistoryCount, plan.FilteredOut.Count);
-
+            logger.LogInformation("{Report}", PlanReport.Repair(repaired, plan));
             return Success.Default;
         }
         finally

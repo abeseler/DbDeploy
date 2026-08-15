@@ -20,25 +20,11 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         if (planError is not null)
             return planError;
         ArgumentNullException.ThrowIfNull(plan);
-        foreach (var (migration, _) in plan.ToRepair)
-            logger.LogWarning("Needs repair: {ErrorMessage}", Exceptions.MigrationHasInvalidChange(migration.Id).Message);
 
         var outputPath = ResolveOutputPath();
         await WritePlan(outputPath, plan, stoppingToken);
 
-        logger.LogInformation("""
-            Deployment Results:
-
-                Pending Apply       =  {Applied}
-                Previously applied  =  {PreviouslyApplied}
-                Pending Baseline    =  {Baseline}
-                Needs Repair        =  {Repair}
-                Filtered out        =  {FilteredOut}
-
-                Plan written to     =  {OutputFile}
-
-            """, plan.ToApply.Count, plan.HistoryCount, plan.ToBaseline.Count, plan.ToRepair.Count, plan.FilteredOut.Count, outputPath);
-
+        logger.LogInformation("{Report}", PlanReport.DryRun(plan, outputPath));
         return Success.Default;
     }
 
@@ -57,7 +43,15 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         await using var writer = new StreamWriter(path, append: false);
         await writer.WriteLineAsync($"-- Ratchet plan generated {DateTimeOffset.UtcNow:u}");
         await writer.WriteLineAsync($"-- Provider: {settings.Value.DatabaseProvider}");
-        await writer.WriteLineAsync($"-- Migrations to apply: {plan.ToApply.Count}");
+        await writer.WriteLineAsync($"-- Pending apply: {plan.ToApply.Count}");
+        foreach (var id in PlanReport.Ids(plan.ToApply))
+            await writer.WriteLineAsync($"--   {id}");
+        await writer.WriteLineAsync($"-- Pending baseline: {plan.PendingBaseline.Count}");
+        foreach (var id in PlanReport.Ids(plan.PendingBaseline))
+            await writer.WriteLineAsync($"--   {id}");
+        await writer.WriteLineAsync($"-- Needs repair: {plan.ToRepair.Count}");
+        foreach (var id in PlanReport.Ids(plan.ToRepair))
+            await writer.WriteLineAsync($"--   {id}");
         await writer.WriteLineAsync();
 
         foreach (var (migration, _) in plan.ToApply)

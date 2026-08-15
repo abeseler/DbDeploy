@@ -18,4 +18,5 @@ internal static class Exceptions
     public static Exception MigrationHasInvalidChange(string title) => new($"{title}\n\nContents have been changed since it was applied.\nSetting runOnChange or runAlways will bypass this check and force the migration to be reapplied\n");
     public static Exception DeploymentFailed(int notAppliedCount) => new($"Deployment failed. {notAppliedCount} migration{(notAppliedCount != 1 ? "s" : "")} not applied");
     public static Exception ValidationNeedsRepair(int count) => new($"Validation failed. {count} migration{(count != 1 ? "s" : "")} need repair (contents changed since apply)");
+    public static Exception UpdateNeedsRepair(int count) => new($"Update refused. {count} migration{(count != 1 ? "s" : "")} need repair (contents changed since apply). Run repair to accept the current SQL.");
 }

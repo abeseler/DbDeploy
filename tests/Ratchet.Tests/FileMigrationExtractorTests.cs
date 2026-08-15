@@ -114,6 +114,42 @@ public sealed class FileMigrationExtractorTests : IDisposable
     }
 
     [Fact]
+    public void Extract_SkipsNonSqlFilesInIncludedDirectory()
+    {
+        var tables = Path.Combine(_root, "Tables");
+        Directory.CreateDirectory(tables);
+        WriteSql(Path.Combine(tables, "customers.sql"), "customers:create");
+        File.WriteAllText(Path.Combine(tables, "README.md"), "not a migration");
+        File.WriteAllText(Path.Combine(tables, "notes.txt"), "also not a migration");
+        File.WriteAllText(Path.Combine(_root, "start.json"), """
+            [{ "include": ["Tables"] }]
+            """);
+
+        var (migrations, error) = Extract("start.json");
+
+        Assert.Null(error);
+        Assert.NotNull(migrations);
+        Assert.Equal(["Tables/customers.sql [customers:create]"], migrations!.Values.Select(m => m.Id).ToList());
+    }
+
+    [Fact]
+    public void Extract_DoesNotFail_WhenIncludedDirectoryHasOnlyNonSqlFiles()
+    {
+        var docs = Path.Combine(_root, "Docs");
+        Directory.CreateDirectory(docs);
+        File.WriteAllText(Path.Combine(docs, "README.md"), "not a migration");
+        File.WriteAllText(Path.Combine(_root, "start.json"), """
+            [{ "include": ["Docs"], "errorIfMissingOrEmpty": true }]
+            """);
+
+        var (migrations, error) = Extract("start.json");
+
+        Assert.Null(error);
+        Assert.NotNull(migrations);
+        Assert.Empty(migrations!.Values);
+    }
+
+    [Fact]
     public void Extract_SkipsMissingInclude_WhenErrorIfMissingOrEmptyIsFalse()
     {
         WriteSql(Path.Combine(_root, "ok.sql"), "ok:create");

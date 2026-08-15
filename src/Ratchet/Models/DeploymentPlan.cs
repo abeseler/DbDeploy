@@ -5,11 +5,13 @@ internal sealed class DeploymentPlan
     public required IReadOnlyList<Migration> Resolved { get; init; }
     public required IReadOnlyList<PlannedMigration> ToApply { get; init; }
     public required IReadOnlyList<PlannedMigration> ToBaseline { get; init; }
+    public required IReadOnlyList<PlannedMigration> PendingBaseline { get; init; }
     public required IReadOnlyList<PlannedMigration> ToRepair { get; init; }
     public required IReadOnlyList<Migration> FilteredOut { get; init; }
     public required IReadOnlyDictionary<string, MigrationHistory> Histories { get; init; }
 
     public int HistoryCount => Histories.Count;
+    public int UpToDateCount => Resolved.Count - ToApply.Count - PendingBaseline.Count - ToRepair.Count;
 }
 
 internal readonly record struct PlannedMigration(Migration Migration, MigrationHistory? History);
@@ -67,11 +69,15 @@ internal static class DeploymentPlanner
                 toApply.Add(new(migration, history));
         }
 
+        var applyIds = toApply.Select(p => p.Migration.Id).ToHashSet(StringComparer.Ordinal);
+        var pendingBaseline = toBaseline.Where(b => applyIds.Contains(b.Migration.Id) is false).ToList();
+
         return new DeploymentPlan
         {
             Resolved = resolved,
             ToApply = toApply,
             ToBaseline = toBaseline,
+            PendingBaseline = pendingBaseline,
             ToRepair = toRepair,
             FilteredOut = filteredOut,
             Histories = histories
