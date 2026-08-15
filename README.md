@@ -27,7 +27,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 - **One file per object, accumulating its history.** Because a file can hold multiple migration blocks, an object's whole change history can live in one place. This makes the model a hybrid:
   - *Tables* are typically **delta-based** — the file accumulates blocks (`create`, then `addColumn`, then `addColumn`), so the file is the object's history, not a snapshot of its current shape.
-  - *Views, procedures and functions* are typically **state-based** — a single block with `runOnChange: true` that is re-applied whenever its SQL changes.
+  - *Views, procedures and functions* are typically **state-based** — a single block with `"run": "onChange"` that is re-applied whenever its SQL changes.
 
 - **Ratchet does not parse or check your SQL.** It only parses the two things it must: the JSON migration header and the statement separators. Everything else is handed to the database, which is the authority on whether the SQL is valid. The tool's job is to *try to apply* your SQL in a known order and record what succeeded — not to understand it.
 
@@ -51,10 +51,10 @@ Ratchet runs a single command per invocation. Prefer a subcommand (`ratchet upda
 - **Roll-forward only.** There is no down script. Recovery is a human decision — see [Design & Philosophy](#design--philosophy).
 - **Each migration is its own unit of work.** Migrations are applied one at a time, each in its own transaction (unless `runInTransaction` is `false`). There is no single transaction spanning the whole deployment. If migration 5 of 10 fails, migrations 1–4 remain applied and the process exits with a non-zero code. Re-running after fixing the problem will resume from the first unapplied migration. A failure to connect to the database after the configured retries also exits non-zero.
 - **`onError: Skip` is not a success.** A skipped migration is logged, is **not** recorded as applied, does **not** consume an apply sequence number, and will be retried on the next run. `onError: Mark` records the migration as applied (and sequences it) so it will not be retried. The `update` summary lists Applied, Skipped, and Marked separately, with each identity.
-- **Idempotency matters only for migrations that can re-run mid-change.** An already-applied migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `runOnChange`/`runAlways` migrations, which re-execute by design. Write those so re-running is safe.
-- **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a migration has been applied, editing its SQL changes the hash and causes `update` to fail (unless `runOnChange` or `runAlways` is set). This is intentional — it prevents silently altering history. The hash is sensitive to the SQL text, so even reformatting an already-applied migration will trip this check. If the database already matches the edited file, run `repair` to accept the new hash.
+- **Idempotency matters only for migrations that can re-run mid-change.** An already-applied `run: once` migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `run: onChange` / `run: always` migrations, which re-execute by design. Write those so re-running is safe.
+- **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a `run: once` migration has been applied, editing its SQL changes the hash and causes `update` to fail. This is intentional — it prevents silently altering history. The hash is sensitive to the SQL text, so even reformatting an already-applied migration will trip this check. If the database already matches the edited file, run `repair` to accept the new hash. `run: onChange` is the switch for objects that should re-apply when you edit them.
 - **Writing history without SQL is never implicit.** `update` only records migrations it actually applied (or `onError: Mark`). Stamping existing schema is `baseline`. Accepting a new hash for something already recorded is `repair`.
-- **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `runOnChange` / `runAlways` migration keeps its original sequence so dry-run reorder detection still reflects first-apply order.
+- **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `run: onChange` / `run: always` migration keeps its original sequence so dry-run reorder detection still reflects first-apply order.
 
 ### Deployment Lock
 
@@ -76,7 +76,7 @@ Migration files are parsed **before** the lock is taken, so a large set does not
 
 Use it as a review gate: generate the plan, publish it as an artifact, run `update` once someone has looked at it.
 
-The plan is the same order and context filter as a real `update`. Each block is annotated with its identity and its `runInTransaction`, `timeout`, and `onError` settings. Pending baseline and needs-repair are listed in the header comments; their SQL is not written.
+The plan is the same order and context filter as a real `update`. Each block is annotated with its identity and its `run`, `runInTransaction`, `timeout`, and `onError` settings. Pending baseline and needs-repair are listed in the header comments; their SQL is not written.
 
 ### Validate
 
@@ -91,7 +91,7 @@ Both commands write `__migration_history` and run no SQL. They refuse to do each
 **Adopt Ratchet on an existing database** — the schema is already there, history is empty (or some folders were never recorded):
 
 1. `baseline` — insert history for in-context migrations that have no row (or a leftover null hash). `executed_sequence` stays null; Ratchet did not apply these.
-2. `status` — pending apply should be 0 (unless you also have `runAlways` / `runOnChange` files).
+2. `status` — pending apply should be 0 (unless you also have `run: always` / pending `run: onChange` files).
 3. Later, add a new migration block and `update` — only the new block runs.
 
 `repair` on an empty journal is a no-op. If you skip `baseline`, the next `update` will try to run `CREATE TABLE` against objects that already exist.
@@ -140,10 +140,11 @@ The starting file is a JSON array of includes. Files and directories in `include
 [
   {
     "include": [
+      "PreDeploy",
       "ensure_exists.sql",
       "Tables",
       "Views",
-      "PostDeployScripts"
+      "PostDeploy"
     ],
     "contextFilter": [],
     "contextRequired": false,
@@ -167,40 +168,35 @@ The starting file is a JSON array of includes. Files and directories in `include
 
 Migrations run in include order. SQL files in a directory run in alphabetical order. Non-`.sql` files in that directory are skipped, so a `README.md` next to the scripts is harmless. Directories are **not** walked recursively: list each folder you want applied, in the order it should run (`dbo/Tables`, then `dbo/ForeignKeys`, not `dbo`). That is how you stay in charge of names and of “in between” stages — you insert a line in the array instead of renaming everything.
 
-The layout I recommend is one folder per object type (Tables, Views, Stored Procedures, …) and one file per object, with those folders listed in dependency order. A single `all_migrations` folder of versioned files is fine too. The tool does not care what you call them.
+The layout I recommend is one folder per object type and one file per object, with those folders listed in dependency order. A copy-paste starter is in [`samples/object-folders`](samples/object-folders) (`PreDeploy`, `Extensions`, `Schemas`, `Types`, `Sequences`, `Tables`, `ForeignKeys`, `Functions`, `Views`, `Procedures`, `Triggers`, `Grants`, `PostDeploy`, plus a `Seed` include). A single `all_migrations` folder of versioned files is fine too. The tool does not care what you call them.
 
 ## Migrations
 
 Migrations are SQL files under the working directory (`Migrations` by default). A file can hold one or more migrations, and a migration can hold one or more statements. Statements are separated by a line that starts with `--NewStatement`.
 
-A migration is a block of SQL preceded by a comment that starts with `/* Migration` and ends with `*/`. The body of that comment is JSON.
+A migration is a block of SQL preceded by a comment that starts with `/* Migration` and ends with `*/`. The body of that comment is JSON. A title-only header can be one line.
 
 ```sql
-/* Migration
-{
-    "title": "widget:createTable"
-}
-*/
-CREATE TABLE IF NOT EXISTS widget (
+/* Migration { "title": "widget:createTable" } */
+CREATE TABLE widget (
     widget_id INT GENERATED ALWAYS AS IDENTITY,
     description TEXT NOT NULL,
     created_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     CONSTRAINT pk_widget PRIMARY KEY (widget_id)
 );
 
-/* Migration
-{
-    "title": "widget.last_modified_on:addColumn"
-}
-*/
+/* Migration { "title": "widget.last_modified_on:addColumn" } */
 ALTER TABLE widget
 ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc');
 ```
 
 - `title`: **Required.** Any string, unique within the file (case-insensitive: `create` and `CREATE` collide).
 - `dependsOn`: Migrations this one must run after. Each entry is a file path (after every block in that file) or `file#title` (after that one block). See [Dependencies](#dependencies).
-- `runOnChange`: Re-run **when the SQL hash changes**. Default `false`. This is the usual switch for views, procedures, and functions: one block, `CREATE OR REPLACE`, applied again only after you edit it. See [runOnChange vs runAlways](#runonchange-vs-runalways).
-- `runAlways`: Re-run **on every `update`**, even when the SQL has not changed. Default `false`. That is a deliberate “do this work on every deploy,” not a way to keep an object in sync. See [runOnChange vs runAlways](#runonchange-vs-runalways).
+- `run`: When this block will be executed. Default `once`. See [run](#run).
+  - `once`: Run this SQL one time. After it is recorded, later deploys skip it. Editing the SQL is drift — `repair`, not a silent second run.
+  - `onChange`: Run again when the SQL hash changes. Views, procedures, functions.
+  - `always`: Run on every `update`, even if the SQL has not changed. Cheap idempotent seeds. Status will list it as pending apply every run.
+  - `never`: Do not run this block. Hash drift is ignored. `update`, `baseline`, and `repair` treat it as absent. Status lists it under Ignored.
 - `runInTransaction`: Wrap the migration in a transaction. Default `true`.
 - `contextFilter`: Contexts that must be active or this migration is skipped.
 - `contextRequired`: If `true`, skip when no contexts are passed. Default `false`.
@@ -212,24 +208,29 @@ ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE '
 
 Because a file can contain multiple migrations, one file per object means that object's full change history lives in one place.
 
-### runOnChange vs runAlways
+### run
 
-Both flags opt a migration out of “apply once and then leave it alone.” They are not interchangeable.
+`run` says **how many times, and on what trigger, this block’s SQL will execute.** **`once` is the default** — that is the whole point of a journal: run this SQL, record it, never run it again.
 
-**`runOnChange` — re-apply when you change the file.** Ratchet compares the current SQL hash to `__migration_history`. If it matches, the block is skipped. If you edit the view (or procedure, or function), the hash changes and the next `update` runs it again. That is how object folders stay the source of truth without paying the cost on every deploy. Write the SQL so a second run is safe (`CREATE OR REPLACE`, `CREATE OR REPLACE PROCEDURE`, …).
+**`once` — this block runs one time.** The first successful `update` (or `Mark`) executes it and writes history. Every later `update` skips it. If you edit the SQL, the hash no longer matches and `update` fails. That is intentional. `repair` accepts the new hash without running the SQL again. It does not mean “run once more after the first apply.”
 
-**`runAlways` — re-apply on every deploy, hash or not.** You are telling Ratchet: *this SQL is part of the deploy, every time.* A lookup-table upsert that must overwrite in-database edits is the usual case. Status will list it under pending apply on every run. If both flags are set, `runAlways` wins: the block runs every time.
+**`onChange` — re-apply when you change the file.** Ratchet compares the current SQL hash to `__migration_history`. If it matches, the block is skipped. If you edit the view (or procedure, or function), the hash changes and the next `update` runs it again. That is how object folders stay the source of truth without paying the cost on every deploy. Write the SQL so a second run is safe (`CREATE OR REPLACE`, `CREATE OR ALTER VIEW`, …).
 
-`runAlways` is easy to overuse. Each such block is more statements on every environment, every pipeline, even when nothing changed. Prefer:
+**`always` — re-apply on every deploy, hash or not.** You are telling Ratchet: *this SQL is part of the deploy, every time.* A lookup-table upsert that must overwrite in-database edits is the usual case. Status will list it under pending apply on every run. Each such block is more statements on every environment, every pipeline, even when nothing changed. Keep the SQL cheap and idempotent.
+
+**`never` — do not run this block.** The SQL stays in the file. `update` does not execute it, `baseline` does not stamp it, and a changed hash is not drift. `dependsOn` treats it like a missing file unless that block was already applied. Use this to park a migration without deleting it.
 
 | What you want | What to set |
 |---|---|
-| View / proc / function that should match the file after you edit it | `runOnChange: true` |
-| Reference data that may have been changed in the database and the file must win every deploy | `runAlways: true`, and keep the SQL cheap and idempotent |
-| A table change that should happen once | neither (the default) |
-| An already-applied block whose SQL you reformatted | `repair`, not a flag |
+| A table change that should happen once | `once` (or omit `run`) |
+| View / proc / function that should match the file after you edit it | `onChange` |
+| Reference data that may have been changed in the database and the file must win every deploy | `always` |
+| Keep the SQL in the file but do not run it | `never` |
+| An already-applied `once` block whose SQL you reformatted | `repair`, not a different `run` |
 
-Do not flip `runAlways` to get past a checksum failure. That failure means history and the file disagree; `repair` accepts the new hash. `runAlways` would also re-run the SQL on every later deploy.
+Do not set `always` to get past a checksum failure. That failure means history and the file disagree; `repair` accepts the new hash. `always` would also re-run the SQL on every later deploy.
+
+The old `runAlways` / `runOnChange` booleans are rejected. Use `run`.
 
 ## Dependencies
 
@@ -256,7 +257,7 @@ ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers
 /* Migration
 {
     "title": "vw_orders:create",
-    "runOnChange": true,
+    "run": "onChange",
     "dependsOn": ["Tables/orders.sql#orders:createTable"]
 }
 */

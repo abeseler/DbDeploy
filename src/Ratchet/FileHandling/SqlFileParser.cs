@@ -21,49 +21,43 @@ internal static class SqlFileParser
 
                 if (line.StartsWith("/* Migration", StringComparison.OrdinalIgnoreCase))
                 {
-                    buildingHeader = true;
-                    if (migrationBuilder.Build() is { } migration)
+                    if (FinishMigration(migrations, migrationBuilder) is { } duplicate)
+                        return duplicate;
+
+                    var remainder = line.Length > 12 ? line[12..] : "";
+                    if (TryTakeHeaderClose(remainder, out var sameLineJson))
                     {
-                        if (HasDuplicateTitle(migrations, migration.Title))
-                            return Exceptions.DuplicateTitle(migration.Title);
-
-                        migrations.Add(migration);
+                        migrationBuilder.AddHeader(sameLineJson);
+                        buildingHeader = false;
                     }
-
-                    if (line.Length > 12)
-                        headerBuilder.Append(line[12..]);
+                    else
+                    {
+                        headerBuilder.Append(remainder);
+                        buildingHeader = true;
+                    }
 
                     continue;
                 }
                 if (buildingHeader)
                 {
-                    var isHeaderEnd = line.EndsWith("*/");
-                    if (isHeaderEnd is false)
+                    if (TryTakeHeaderClose(line, out var closingJson) is false)
                     {
                         headerBuilder.Append(line);
                         continue;
                     }
 
-                    if (line.Length > 2)
-                        headerBuilder.Append(line[..^2]);
-
+                    headerBuilder.Append(closingJson);
                     migrationBuilder.AddHeader(headerBuilder.ToString());
                     headerBuilder.Clear();
                     buildingHeader = false;
-
                     continue;
                 }
                 if (line.Length > 0)
                     migrationBuilder.AddToSql(line);
             }
 
-            if (migrationBuilder.Build() is { } lastMigration)
-            {
-                if (HasDuplicateTitle(migrations, lastMigration.Title))
-                    return Exceptions.DuplicateTitle(lastMigration.Title);
-
-                migrations.Add(lastMigration);
-            }
+            if (FinishMigration(migrations, migrationBuilder) is { } lastDuplicate)
+                return lastDuplicate;
         }
         catch (Exception ex)
         {
@@ -72,6 +66,31 @@ internal static class SqlFileParser
 
 
         return migrations.Count == 0 && (include?.ErrorIfMissingOrEmpty ?? true) ? Exceptions.FileIsEmpty : migrations;
+    }
+
+    private static Exception? FinishMigration(List<Migration> migrations, MigrationBuilder builder)
+    {
+        if (builder.Build() is not { } migration)
+            return null;
+
+        if (HasDuplicateTitle(migrations, migration.Title))
+            return Exceptions.DuplicateTitle(migration.Title);
+
+        migrations.Add(migration);
+        return null;
+    }
+
+    private static bool TryTakeHeaderClose(string line, out string beforeClose)
+    {
+        var trimmed = line.TrimEnd();
+        if (trimmed.EndsWith("*/") is false)
+        {
+            beforeClose = line;
+            return false;
+        }
+
+        beforeClose = trimmed[..^2];
+        return true;
     }
 
     private static bool HasDuplicateTitle(List<Migration> migrations, string title) =>

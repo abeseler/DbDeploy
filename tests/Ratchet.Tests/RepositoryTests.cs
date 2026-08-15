@@ -48,7 +48,7 @@ public sealed class RepositoryTests : IDisposable
     public async Task ApplyMigration_PreservesSequenceOnReapply()
     {
         var repo = await OpenRepository();
-        var migration = Ok("views.sql", "view", runOnChange: true);
+        var migration = Ok("views.sql", "view", run: Migration.RunMode.OnChange);
 
         Assert.True((await repo.ApplyMigration(migration, null)).Succeeded);
         var original = (await repo.GetAllMigrationHistories())[migration.Id];
@@ -154,14 +154,14 @@ public sealed class RepositoryTests : IDisposable
         return repo;
     }
 
-    private static Migration Ok(string fileName, string title, bool runOnChange = false) => new()
+    private static Migration Ok(string fileName, string title, Migration.RunMode run = Migration.RunMode.Once) => new()
     {
         FileName = fileName,
         Title = title,
         SqlStatements = ["SELECT 1;"],
         Hash = title,
         ContextFilter = [],
-        RunOnChange = runOnChange,
+        Run = run,
         RunInTransaction = true,
         Timeout = 30
     };

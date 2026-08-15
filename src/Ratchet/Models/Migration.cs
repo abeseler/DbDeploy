@@ -8,8 +8,7 @@ internal sealed record Migration
     public required string[] SqlStatements { get; init; }
     public string[] DependsOn { get; init; } = [];
     public string? Hash { get; init; }
-    public bool RunAlways { get; init; }
-    public bool RunOnChange { get; init; }
+    public RunMode Run { get; init; } = RunMode.Once;
     public bool RunInTransaction { get; init; }
     public bool ContextRequired { get; init; }
     public required string[] ContextFilter { get; init; }
@@ -25,11 +24,16 @@ internal sealed record Migration
         _ => false
     };
 
-    public bool HasInvalidChange(MigrationHistory? history) => (this, history) switch
+    public bool HasInvalidChange(MigrationHistory? history) =>
+        Run is RunMode.Once && history is { Hash: not null } && Hash != history.Hash;
+
+    public enum RunMode
     {
-        ({ RunAlways: false, RunOnChange: false }, { Hash: not null }) => Hash != history.Hash,
-        _ => false
-    };
+        Once,
+        OnChange,
+        Always,
+        Never
+    }
 
     public enum ErrorHandling
     {

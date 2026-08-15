@@ -182,5 +182,8 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
     private static void WriteSql(string path, string title) =>
         File.WriteAllText(path,
-            "/* Migration\n{\n    \"title\": \"" + title + "\"\n}\n*/\nSELECT 1;\n");
+            $$"""
+            /* Migration { "title": "{{title}}" } */
+            SELECT 1;
+            """);
 }

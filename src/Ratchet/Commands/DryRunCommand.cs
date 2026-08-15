@@ -52,6 +52,9 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
         await writer.WriteLineAsync($"-- Needs repair: {plan.ToRepair.Count}");
         foreach (var id in PlanReport.Ids(plan.ToRepair))
             await writer.WriteLineAsync($"--   {id}");
+        await writer.WriteLineAsync($"-- Ignored: {plan.Ignored.Count}");
+        foreach (var id in PlanReport.Ids(plan.Ignored))
+            await writer.WriteLineAsync($"--   {id}");
         await writer.WriteLineAsync();
 
         foreach (var (migration, _) in plan.ToApply)
@@ -109,11 +112,7 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
     {
         await writer.WriteLineAsync("-- ============================================================");
         await writer.WriteLineAsync($"-- Migration: {migration.Id}");
-        await writer.WriteLineAsync($"-- transaction={(migration.RunInTransaction ? "true" : "false")}  timeout={migration.Timeout}  onError={migration.OnError}");
-        if (migration.RunAlways)
-            await writer.WriteLineAsync("-- runAlways=true");
-        if (migration.RunOnChange)
-            await writer.WriteLineAsync("-- runOnChange=true");
+        await writer.WriteLineAsync($"-- transaction={(migration.RunInTransaction ? "true" : "false")}  timeout={migration.Timeout}  onError={migration.OnError}  run={FormatRun(migration.Run)}");
         await writer.WriteLineAsync("-- ============================================================");
 
         if (migration.RunInTransaction)
@@ -130,4 +129,12 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
 
         await writer.WriteLineAsync();
     }
+
+    private static string FormatRun(Migration.RunMode run) => run switch
+    {
+        Migration.RunMode.OnChange => "onChange",
+        Migration.RunMode.Always => "always",
+        Migration.RunMode.Never => "never",
+        _ => "once"
+    };
 }

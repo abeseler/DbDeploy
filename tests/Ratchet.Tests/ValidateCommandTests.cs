@@ -155,5 +155,8 @@ public sealed class ValidateCommandTests : IDisposable
 
     private void WriteSql(string name, string title) =>
         File.WriteAllText(Path.Combine(_root, name),
-            "/* Migration\n{\n    \"title\": \"" + title + "\"\n}\n*/\nSELECT 1;\n");
+            $$"""
+            /* Migration { "title": "{{title}}" } */
+            SELECT 1;
+            """);
 }

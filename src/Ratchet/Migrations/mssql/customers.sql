@@ -1,8 +1,4 @@
-/* Migration
-{
-	"title": "customers:createTable"
-}
-*/
+/* Migration { "title": "customers:createTable" } */
 CREATE TABLE customers (
     id INT NOT NULL IDENTITY(1, 1),
     name NVARCHAR(200) NOT NULL,
@@ -11,10 +7,6 @@ CREATE TABLE customers (
     CONSTRAINT pk_customers PRIMARY KEY (id)
 );
 
-/* Migration
-{
-	"title": "customers.phone:addColumn"
-}
-*/
+/* Migration { "title": "customers.phone:addColumn" } */
 ALTER TABLE customers
 ADD phone NVARCHAR(50) NULL;

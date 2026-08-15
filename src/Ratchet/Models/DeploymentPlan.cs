@@ -8,6 +8,7 @@ internal sealed class DeploymentPlan
     public required IReadOnlyList<PlannedMigration> PendingBaseline { get; init; }
     public required IReadOnlyList<PlannedMigration> ToRepair { get; init; }
     public required IReadOnlyList<Migration> FilteredOut { get; init; }
+    public required IReadOnlyList<Migration> Ignored { get; init; }
     public required IReadOnlyDictionary<string, MigrationHistory> Histories { get; init; }
 
     public int HistoryCount => Histories.Count;
@@ -24,11 +25,13 @@ internal static class DeploymentPlanner
         string[] contexts)
     {
         var applied = histories.Values.Select(h => new AppliedMigration(h.FileName, h.Title)).ToList();
-        var (ordered, error) = MigrationOrderResolver.Resolve(parsed, contexts, applied);
+        var ignored = parsed.Where(m => m.Run is Migration.RunMode.Never).ToList();
+        var active = parsed.Where(m => m.Run is not Migration.RunMode.Never).ToList();
+        var (ordered, error) = MigrationOrderResolver.Resolve(active, contexts, applied);
         if (error is not null)
             return error;
 
-        return Build(ordered!, histories, contexts);
+        return Build(ordered!.Concat(ignored), histories, contexts);
     }
 
     public static DeploymentPlan Build(
@@ -41,9 +44,16 @@ internal static class DeploymentPlanner
         var toBaseline = new List<PlannedMigration>();
         var toRepair = new List<PlannedMigration>();
         var filteredOut = new List<Migration>();
+        var ignored = new List<Migration>();
 
         foreach (var migration in migrations)
         {
+            if (migration.Run is Migration.RunMode.Never)
+            {
+                ignored.Add(migration);
+                continue;
+            }
+
             if (migration.IsMissingRequiredContext(contexts))
             {
                 filteredOut.Add(migration);
@@ -65,7 +75,9 @@ internal static class DeploymentPlanner
             if (migration.HasInvalidChange(history))
                 toRepair.Add(new(migration, history));
 
-            if (history is null || migration.RunAlways || (migration.RunOnChange && history.Hash != migration.Hash))
+            if (history is null
+                || migration.Run is Migration.RunMode.Always
+                || (migration.Run is Migration.RunMode.OnChange && history.Hash != migration.Hash))
                 toApply.Add(new(migration, history));
         }
 
@@ -80,6 +92,7 @@ internal static class DeploymentPlanner
             PendingBaseline = pendingBaseline,
             ToRepair = toRepair,
             FilteredOut = filteredOut,
+            Ignored = ignored,
             Histories = histories
         };
     }

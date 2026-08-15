@@ -53,6 +53,7 @@ internal static class PlanReport
         AppendBucket(sb, "Marked", marked, "failed, recorded as applied, will not retry");
         AppendCount(sb, "Already in history", plan.HistoryCount);
         AppendBucket(sb, "Filtered out", Ids(plan.FilteredOut), "skipped by context");
+        AppendBucket(sb, "Ignored", Ids(plan.Ignored), "run is never");
         return sb.ToString();
     }
 
@@ -64,6 +65,7 @@ internal static class PlanReport
         AppendBucket(sb, "Baselined", baselined, "recorded as applied without running SQL");
         AppendCount(sb, "Already in history", plan.HistoryCount);
         AppendBucket(sb, "Filtered out", Ids(plan.FilteredOut), "skipped by context");
+        AppendBucket(sb, "Ignored", Ids(plan.Ignored), "run is never");
         return sb.ToString();
     }
 
@@ -75,6 +77,7 @@ internal static class PlanReport
         AppendBucket(sb, "Repaired", repaired, "history hash updated to match the current SQL");
         AppendCount(sb, "Already in history", plan.HistoryCount);
         AppendBucket(sb, "Filtered out", Ids(plan.FilteredOut), "skipped by context");
+        AppendBucket(sb, "Ignored", Ids(plan.Ignored), "run is never");
         return sb.ToString();
     }
 
@@ -92,6 +95,7 @@ internal static class PlanReport
         AppendCount(sb, "Up to date", plan.UpToDateCount);
         AppendCount(sb, "Already in history", plan.HistoryCount);
         AppendBucket(sb, "Filtered out", Ids(plan.FilteredOut), "skipped by context");
+        AppendBucket(sb, "Ignored", Ids(plan.Ignored), "run is never; treated as absent");
     }
 
     private static void AppendCount(StringBuilder sb, string name, int count) =>

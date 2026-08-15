@@ -48,8 +48,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
             SqlStatements = [.. _sqlStatements],
             DependsOn = _header.DependsOn ?? [],
             Hash = CalculateHash(_sqlStatements),
-            RunAlways = _header.RunAlways ?? false,
-            RunOnChange = _header.RunOnChange ?? false,
+            Run = ParseRun(_header),
             RunInTransaction = _header.RunInTransaction ?? true,
             ContextRequired = requiresContext || (_header.ContextRequired ?? false),
             ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
@@ -68,6 +67,22 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
         return result;
     }
 
+    private static Migration.RunMode ParseRun(MigrationHeader header)
+    {
+        if (header.RunAlways is not null || header.RunOnChange is not null)
+            throw new Exception("runAlways and runOnChange were replaced by run: once | onChange | always | never");
+
+        return header.Run switch
+        {
+            null or "" => Migration.RunMode.Once,
+            string s when s.Equals("once", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Once,
+            string s when s.Equals("onChange", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.OnChange,
+            string s when s.Equals("always", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Always,
+            string s when s.Equals("never", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Never,
+            string s => throw new Exception($"Invalid run value '{s}'. Use once, onChange, always, or never.")
+        };
+    }
+
     private static string CalculateHash(IReadOnlyList<string> input)
     {
         var bytes = input.SelectMany(Encoding.UTF8.GetBytes).ToArray();
@@ -78,6 +93,7 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
     {
         public string? Title { get; set; }
         public string[]? DependsOn { get; set; }
+        public string? Run { get; set; }
         public bool? RunAlways { get; set; }
         public bool? RunOnChange { get; set; }
         public bool? RunInTransaction { get; set; }

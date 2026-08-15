@@ -37,6 +37,7 @@ public sealed class PlanReportTests
         Assert.Contains("Already in history (3)", report);
         Assert.Contains("Filtered out (1) - skipped by context:", report);
         Assert.Contains("    seed.sql [seed]", report);
+        Assert.Contains("Ignored (0)", report);
     }
 
     [Fact]
@@ -50,6 +51,7 @@ public sealed class PlanReportTests
         Assert.Contains("Pending baseline (0)", report);
         Assert.Contains("Needs repair (0)", report);
         Assert.Contains("Filtered out (0)", report);
+        Assert.Contains("Ignored (0)", report);
         Assert.DoesNotContain("Pending apply (0) -", report);
     }
 

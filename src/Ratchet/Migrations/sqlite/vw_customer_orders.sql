@@ -1,7 +1,7 @@
 /* Migration
 {
 	"title": "vw_customer_orders:create",
-	"runOnChange": true,
+	"run": "onChange",
 	"dependsOn": ["sqlite/customers.sql", "sqlite/orders.sql"]
 }
 */

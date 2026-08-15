@@ -1,0 +1,28 @@
+[
+  {
+    "include": [
+      "PreDeploy",
+      "Extensions",
+      "Schemas",
+      "Types",
+      "Sequences",
+      "Tables",
+      "ForeignKeys",
+      "Functions",
+      "Views",
+      "Procedures",
+      "Triggers",
+      "Grants",
+      "PostDeploy"
+    ],
+    "errorIfMissingOrEmpty": false
+  },
+  {
+    "include": [
+      "Seed"
+    ],
+    "contextFilter": ["seed"],
+    "contextRequired": true,
+    "errorIfMissingOrEmpty": false
+  }
+]

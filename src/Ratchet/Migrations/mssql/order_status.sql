@@ -1,8 +1,4 @@
-/* Migration
-{
-	"title": "order_status:createTable"
-}
-*/
+/* Migration { "title": "order_status:createTable" } */
 CREATE TABLE order_status (
     code NVARCHAR(30) NOT NULL,
     description NVARCHAR(100) NOT NULL,
@@ -12,7 +8,7 @@ CREATE TABLE order_status (
 /* Migration
 {
 	"title": "order_status:seed",
-	"runAlways": true
+	"run": "always"
 }
 */
 MERGE order_status AS target

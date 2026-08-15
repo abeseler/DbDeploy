@@ -22,8 +22,7 @@ public sealed class SqlFileParserTests
 
         Assert.Equal("Migrations/Example.sql", migration.FileName);
         Assert.Equal("example:1", migration.Title);
-        Assert.False(migration.RunAlways);
-        Assert.False(migration.RunOnChange);
+        Assert.Equal(Migration.RunMode.Once, migration.Run);
         Assert.True(migration.RunInTransaction);
         Assert.False(migration.ContextRequired);
         Assert.Empty(migration.ContextFilter);
@@ -35,8 +34,7 @@ public sealed class SqlFileParserTests
 
         Assert.Equal("Migrations/Example.sql", migration.FileName);
         Assert.Equal("example:2", migration.Title);
-        Assert.True(migration.RunAlways);
-        Assert.True(migration.RunOnChange);
+        Assert.Equal(Migration.RunMode.Always, migration.Run);
         Assert.False(migration.RunInTransaction);
         Assert.True(migration.ContextRequired);
         Assert.Equal(2, migration.ContextFilter.Length);
@@ -83,6 +81,89 @@ public sealed class SqlFileParserTests
 
         Assert.True(result.Failed);
         Assert.Contains("Orders:Create", result.Match(_ => "", e => e.Message));
+    }
+
+    [Fact]
+    public void Parse_ReadsAOneLineHeader()
+    {
+        var result = ParseTemporary("""
+            /* Migration { "title": "widget:createTable" } */
+            CREATE TABLE widget (id INT);
+            """);
+
+        Assert.True(result.Succeeded);
+        var migration = result.Match(m => m![0], _ => throw new InvalidOperationException());
+        Assert.Equal("widget:createTable", migration.Title);
+        Assert.Equal(Migration.RunMode.Once, migration.Run);
+        Assert.Contains("CREATE TABLE widget", migration.SqlStatements[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ReadsAOneLineHeader_WhenClosingTokenHasTrailingWhitespace()
+    {
+        var result = ParseTemporary("""
+            /* Migration { "title": "one" } */   
+            SELECT 1;
+            """);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("one", result.Match(m => m![0].Title, _ => ""));
+    }
+
+    [Fact]
+    public void Parse_ReadsRunOnChange()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "vw", "run": "onChange" }
+            */
+            SELECT 1;
+            """);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(Migration.RunMode.OnChange, result.Match(m => m![0].Run, _ => Migration.RunMode.Once));
+    }
+
+    [Fact]
+    public void Parse_ReadsRunNever()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "parked", "run": "never" }
+            */
+            SELECT 1;
+            """);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(Migration.RunMode.Never, result.Match(m => m![0].Run, _ => Migration.RunMode.Once));
+    }
+
+    [Fact]
+    public void Parse_RejectsUnknownRunValue()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "vw", "run": "sometimes" }
+            */
+            SELECT 1;
+            """);
+
+        Assert.True(result.Failed);
+        Assert.Contains("sometimes", result.Match(_ => "", e => e.Message));
+    }
+
+    [Fact]
+    public void Parse_RejectsReplacedRunFlags()
+    {
+        var result = ParseTemporary("""
+            /* Migration
+            { "title": "seed", "runAlways": true }
+            */
+            SELECT 1;
+            """);
+
+        Assert.True(result.Failed);
+        Assert.Contains("run:", result.Match(_ => "", e => e.Message), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

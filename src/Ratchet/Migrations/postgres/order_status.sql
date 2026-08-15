@@ -1,8 +1,4 @@
-/* Migration
-{
-	"title": "order_status:createTable"
-}
-*/
+/* Migration { "title": "order_status:createTable" } */
 CREATE TABLE order_status (
     code TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -12,7 +8,7 @@ CREATE TABLE order_status (
 /* Migration
 {
 	"title": "order_status:seed",
-	"runAlways": true
+	"run": "always"
 }
 */
 INSERT INTO order_status (code, description) VALUES ('pending', 'Pending')
