@@ -10,7 +10,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
             Usage.Write();
             if (string.IsNullOrWhiteSpace(settings.Value.Command))
             {
-                logger.LogCritical("No command specified. Set a command from the cli with --command or the environment variable Deploy__Command");
+                logger.LogCritical("No command specified. Pass a subcommand (ratchet update), --command, or Deploy__Command");
                 Environment.ExitCode = 1;
                 return;
             }

@@ -9,10 +9,8 @@ Ratchet runs as a one-shot container: point it at a directory of SQL migrations,
 ```bash
 docker run --rm \
   -v ./migrations:/app/Migrations \
-  -e Deploy__Command=update \
-  -e Deploy__DatabaseProvider=postgres \
   -e Deploy__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
-  abeseler/ratchet
+  abeseler/ratchet update
 ```
 
 Put a `ratchet.json` starting file in that mounted directory (see [Starting File](#starting-file)). Override the name with `--startingFile` / `Deploy__StartingFile` if you need to.
@@ -39,7 +37,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 ## Commands
 
-Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database. `--version` prints the assembly version (the `<Version>` in the project) and exits.
+Ratchet runs a single command per invocation. Prefer a subcommand (`ratchet update`); `--command` and `Deploy__Command` are the same thing for flags and environment variables. Do not pass a subcommand and `--command` together. `--help` / `-h` prints usage and exits without connecting to the database. `--version` prints the assembly version (the `<Version>` in the project) and exits.
 
 - **`update`** — Apply pending migrations in resolved order. This is the normal deployment command. It runs SQL and records only what it applied (or `onError: Mark`). Checksum drift fails the run — see `repair`.
 - **`status`** — Print pending apply, pending baseline, needs repair, up to date, and filtered-out counts, with each identity listed. Read-only; no lock. Drift is listed under needs repair here and is a failure on `update`. New files count as pending apply only — pending baseline is leftover history with no hash.
@@ -114,10 +112,10 @@ Flags and environment variables set the same options. Env vars use the `Deploy__
 
 | Flag | Environment | Default |
 |---|---|---|
-| `--command` | `Deploy__Command` | (required) `update`, `status`, `validate`, `dryrun`, `baseline`, `repair` |
+| `--command` | `Deploy__Command` | (required) same as the subcommand: `update`, `status`, `validate`, `dryrun`, `baseline`, `repair` |
 | `--migrations` | `Deploy__WorkingDirectory` | `Migrations` (in the container: `/app/Migrations`) |
 | `--startingFile` | `Deploy__StartingFile` | `ratchet.json` in the working directory |
-| `--provider` | `Deploy__DatabaseProvider` | `postgres`, `mssql`, or `sqlite` |
+| `--provider` | `Deploy__DatabaseProvider` | `postgres` (`postgres`, `mssql`, or `sqlite`) |
 | `--connectionString` | `Deploy__ConnectionString` | (required except file-only `validate`) |
 | `--contexts` | `Deploy__Contexts` | comma-separated; empty means no extra context |
 | `--maxLockWait` | `Deploy__LockWaitMaxSeconds` | `120` |
@@ -201,8 +199,8 @@ ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE '
 
 - `title`: **Required.** Any string, unique within the file (case-insensitive: `create` and `CREATE` collide).
 - `dependsOn`: Migrations this one must run after. Each entry is a file path (after every block in that file) or `file#title` (after that one block). See [Dependencies](#dependencies).
-- `runAlways`: Run every time. Default `false`. Useful for lookup-table upserts.
-- `runOnChange`: Run when the SQL hash changes. Default `false`. Useful for views, procedures, and functions.
+- `runOnChange`: Re-run **when the SQL hash changes**. Default `false`. This is the usual switch for views, procedures, and functions: one block, `CREATE OR REPLACE`, applied again only after you edit it. See [runOnChange vs runAlways](#runonchange-vs-runalways).
+- `runAlways`: Re-run **on every `update`**, even when the SQL has not changed. Default `false`. That is a deliberate “do this work on every deploy,” not a way to keep an object in sync. See [runOnChange vs runAlways](#runonchange-vs-runalways).
 - `runInTransaction`: Wrap the migration in a transaction. Default `true`.
 - `contextFilter`: Contexts that must be active or this migration is skipped.
 - `contextRequired`: If `true`, skip when no contexts are passed. Default `false`.
@@ -213,6 +211,25 @@ ADD COLUMN last_modified_on_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE '
   - `Mark`: Log the error but record the migration as applied so it will not be retried. Use with caution — this hides a real failure and can lead to schema drift.
 
 Because a file can contain multiple migrations, one file per object means that object's full change history lives in one place.
+
+### runOnChange vs runAlways
+
+Both flags opt a migration out of “apply once and then leave it alone.” They are not interchangeable.
+
+**`runOnChange` — re-apply when you change the file.** Ratchet compares the current SQL hash to `__migration_history`. If it matches, the block is skipped. If you edit the view (or procedure, or function), the hash changes and the next `update` runs it again. That is how object folders stay the source of truth without paying the cost on every deploy. Write the SQL so a second run is safe (`CREATE OR REPLACE`, `CREATE OR REPLACE PROCEDURE`, …).
+
+**`runAlways` — re-apply on every deploy, hash or not.** You are telling Ratchet: *this SQL is part of the deploy, every time.* A lookup-table upsert that must overwrite in-database edits is the usual case. Status will list it under pending apply on every run. If both flags are set, `runAlways` wins: the block runs every time.
+
+`runAlways` is easy to overuse. Each such block is more statements on every environment, every pipeline, even when nothing changed. Prefer:
+
+| What you want | What to set |
+|---|---|
+| View / proc / function that should match the file after you edit it | `runOnChange: true` |
+| Reference data that may have been changed in the database and the file must win every deploy | `runAlways: true`, and keep the SQL cheap and idempotent |
+| A table change that should happen once | neither (the default) |
+| An already-applied block whose SQL you reformatted | `repair`, not a flag |
+
+Do not flip `runAlways` to get past a checksum failure. That failure means history and the file disagree; `repair` accepts the new hash. `runAlways` would also re-run the SQL on every later deploy.
 
 ## Dependencies
 

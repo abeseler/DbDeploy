@@ -28,15 +28,16 @@ internal static class Usage
         Ratchet — SQL-first database migrations
 
         Usage:
+          ratchet <{CommandList}> [options]
           ratchet --command <{CommandList}> [options]
           ratchet --help
           ratchet --version
 
         Options:
-          --command <name>            Command to run: {CommandCsv}
+          --command <name>            Command to run (same as the subcommand). {CommandCsv}
           --migrations <path>         Directory containing the starting file and SQL. Default: Migrations
           --startingFile <file>       Starting file (json include list, or a single .sql file). Default: ratchet.json
-          --provider <name>           Database provider: postgres, mssql, sqlite
+          --provider <name>           Database provider: postgres, mssql, sqlite. Default: postgres
           --connectionString <cs>     Connection string
           --contexts <list>           Comma-separated contexts
           --maxLockWait <seconds>     Max time to wait for the deployment lock. Default: 120

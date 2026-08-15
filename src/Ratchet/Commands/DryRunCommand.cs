@@ -42,7 +42,7 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
 
         await using var writer = new StreamWriter(path, append: false);
         await writer.WriteLineAsync($"-- Ratchet plan generated {DateTimeOffset.UtcNow:u}");
-        await writer.WriteLineAsync($"-- Provider: {settings.Value.DatabaseProvider}");
+        await writer.WriteLineAsync($"-- Provider: {settings.Value.ResolveDatabaseProvider()}");
         await writer.WriteLineAsync($"-- Pending apply: {plan.ToApply.Count}");
         foreach (var id in PlanReport.Ids(plan.ToApply))
             await writer.WriteLineAsync($"--   {id}");

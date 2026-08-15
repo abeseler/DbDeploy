@@ -7,8 +7,6 @@ var contexts = builder.AddParameter("contexts", "test", publishValueAsDefault: t
 var postgres = builder.AddPostgres("postgres").WithPgWeb();
 var postgresDb = postgres.AddDatabase("pgdn", "app");
 
-postgresDb.WithRatchetCommands(builder, "postgres", "migrations_postgres.json", contexts);
-
 builder.AddRatchetForPostgres("deploy-postgres", postgresDb, contexts);
 
 builder.Build().Run();

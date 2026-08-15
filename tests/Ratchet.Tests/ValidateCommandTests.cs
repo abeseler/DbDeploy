@@ -146,7 +146,7 @@ public sealed class ValidateCommandTests : IDisposable
     {
         WorkingDirectory = _root,
         StartingFile = "ratchet.json",
-        DatabaseProvider = database is null ? null : "sqlite",
+        DatabaseProvider = database is null ? Settings.DefaultDatabaseProvider : "sqlite",
         ConnectionString = database
     };
 

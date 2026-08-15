@@ -6,11 +6,23 @@ using Serilog.Events;
 using Serilog.Sinks.OpenTelemetry;
 
 
-var config = new ConfigurationBuilder()
+var parsed = Arguments.Peel(args);
+if (parsed.CommandSpecifiedTwice)
+{
+    Console.Error.WriteLine("Specify the command once: 'ratchet update' or '--command update', not both.");
+    Environment.ExitCode = 1;
+    return;
+}
+
+var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: true)
     .AddEnvironmentVariables()
-    .AddCommandLine(args, Arguments.Mapping)
-    .Build();
+    .AddCommandLine(parsed.Remaining, Arguments.Mapping);
+
+if (parsed.PositionalCommand is not null)
+    configuration.AddInMemoryCollection([new("Deploy:Command", parsed.PositionalCommand)]);
+
+var config = configuration.Build();
 
 if (Usage.IsHelpRequest(args) || Usage.IsHelpCommand(config["Deploy:Command"]))
 {
@@ -85,7 +97,7 @@ services.AddSingleton<IDatabaseProvider>(sp =>
         return new UnconfiguredDbProvider();
 
     var connectionString = options.ConnectionString!;
-    return options.DatabaseProvider switch
+    return options.ResolveDatabaseProvider() switch
     {
         "postgres" => new PostgresDbProvider(connectionString),
         "mssql" => new MsSqlDbProvider(connectionString),

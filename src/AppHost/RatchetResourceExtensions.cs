@@ -1,7 +1,5 @@
 #pragma warning disable ASPIREPROCESSCOMMAND001
 
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-
 internal static class RatchetResourceExtensions
 {
     public static IResourceBuilder<ProjectResource> AddRatchetForPostgres(
@@ -25,33 +23,33 @@ internal static class RatchetResourceExtensions
         if (contexts is not null)
             ratchet.WithEnvironment("Deploy__Contexts", contexts);
 
-        return ratchet;
+        return ratchet.WithRatchetCommands(builder, database, "postgres", "migrations_postgres.json", contexts);
     }
 
-    public static IResourceBuilder<T> WithRatchetCommands<T>(
-        this IResourceBuilder<T> database,
+    public static IResourceBuilder<ProjectResource> WithRatchetCommands(
+        this IResourceBuilder<ProjectResource> ratchet,
         IDistributedApplicationBuilder builder,
+        IResourceBuilder<IResourceWithConnectionString> database,
         string provider,
         string startingFile,
         IResourceBuilder<ParameterResource>? contexts = null)
-        where T : IResourceWithConnectionString
     {
         var projectDir = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "Ratchet"));
         var dll = Path.Combine(projectDir, "bin", GetConfiguration(), "net10.0", "Ratchet.dll");
         var planPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "ratchet-plan.sql"));
 
-        Add(database, "update", "Update", "Play", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false);
-        Add(database, "status", "Status", "TextBulletListSquare", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false);
-        Add(database, "validate", "Validate", "Checkmark", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false);
-        Add(database, "dryrun", "Dry run", "Document", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false);
-        Add(database, "baseline", "Baseline", "Database", provider, startingFile, projectDir, dll, planPath, contexts, confirm: true);
-        Add(database, "repair", "Repair", "Wrench", provider, startingFile, projectDir, dll, planPath, contexts, confirm: true);
+        Add(ratchet, database, "status", "Status", "TextBulletListSquare", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false, highlight: true);
+        Add(ratchet, database, "validate", "Validate", "Checkmark", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false, highlight: false);
+        Add(ratchet, database, "dryrun", "Dry run", "Document", provider, startingFile, projectDir, dll, planPath, contexts, confirm: false, highlight: false);
+        Add(ratchet, database, "baseline", "Baseline", "Database", provider, startingFile, projectDir, dll, planPath, contexts, confirm: true, highlight: false);
+        Add(ratchet, database, "repair", "Repair", "Wrench", provider, startingFile, projectDir, dll, planPath, contexts, confirm: true, highlight: false);
 
-        return database;
+        return ratchet;
     }
 
-    private static void Add<T>(
-        IResourceBuilder<T> database,
+    private static void Add(
+        IResourceBuilder<ProjectResource> ratchet,
+        IResourceBuilder<IResourceWithConnectionString> database,
         string command,
         string displayName,
         string iconName,
@@ -61,10 +59,10 @@ internal static class RatchetResourceExtensions
         string dll,
         string planPath,
         IResourceBuilder<ParameterResource>? contexts,
-        bool confirm)
-        where T : IResourceWithConnectionString
+        bool confirm,
+        bool highlight)
     {
-        database.WithProcessCommand(
+        ratchet.WithProcessCommand(
             command,
             displayName,
             async context =>
@@ -101,12 +99,11 @@ internal static class RatchetResourceExtensions
             {
                 IconName = iconName,
                 IconVariant = IconVariant.Regular,
+                IsHighlighted = highlight,
+                Visibility = ResourceCommandVisibility.UI | ResourceCommandVisibility.Api,
                 ConfirmationMessage = confirm
-                    ? $"Run '{command}' against {database.Resource.Name}? This writes __migration_history and does not run SQL."
+                    ? $"Run '{command}'? This writes __migration_history and does not run SQL."
                     : null,
-                UpdateState = state => state.ResourceSnapshot.HealthStatus is HealthStatus.Unhealthy
-                    ? ResourceCommandState.Disabled
-                    : ResourceCommandState.Enabled,
                 DisplayImmediately = true,
                 MaxOutputLineCount = 80
             });

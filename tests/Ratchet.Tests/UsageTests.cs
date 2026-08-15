@@ -66,4 +66,8 @@ public sealed class UsageTests
     [Fact]
     public void Text_ListsVersionFlag() =>
         Assert.Contains("--version", Usage.Text);
+
+    [Fact]
+    public void Text_ShowsSubcommandUsage() =>
+        Assert.Contains("ratchet <update|status|validate|dryrun|baseline|repair>", Usage.Text);
 }
