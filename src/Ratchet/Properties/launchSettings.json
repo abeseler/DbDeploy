@@ -2,9 +2,11 @@
   "profiles": {
     "Postgres": {
       "commandName": "Project",
+      "workingDirectory": ".",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "update",
+        "Deploy__WorkingDirectory": "../AppHost/Migrations",
         "Deploy__StartingFile": "migrations_postgres.json",
         "Deploy__DatabaseProvider": "postgres",
         "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=App;User Id=postgres;Password=postgres",
@@ -15,9 +17,11 @@
     },
     "Sqlite": {
       "commandName": "Project",
+      "workingDirectory": ".",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Deploy__Command": "dryrun",
+        "Deploy__WorkingDirectory": "../AppHost/Migrations",
         "Deploy__StartingFile": "migrations_sqlite.json",
         "Deploy__DatabaseProvider": "sqlite",
         "Deploy__ConnectionString": "Data Source=App.db",

@@ -14,7 +14,9 @@ internal sealed class Settings
         Contexts?.Split(',').Select(x => x.Trim()).ToArray() ?? [];
     public string DatabaseProvider { get; set; } = DefaultDatabaseProvider;
     public string ResolveDatabaseProvider() =>
-        string.IsNullOrWhiteSpace(DatabaseProvider) ? DefaultDatabaseProvider : DatabaseProvider;
+        string.IsNullOrWhiteSpace(DatabaseProvider)
+            ? DefaultDatabaseProvider
+            : DatabaseProvider.Trim().ToLowerInvariant();
     public string? ConnectionString { get; set; }
     public bool IsDatabaseConfigured =>
         string.IsNullOrWhiteSpace(ConnectionString) is false;

@@ -54,7 +54,7 @@ Ratchet runs a single command per invocation. Prefer a subcommand (`ratchet upda
 - **Idempotency matters only for migrations that can re-run mid-change.** An already-applied `run: once` migration is never re-run, so defensive guards like `CREATE TABLE IF NOT EXISTS` are unnecessary for the common case — that `CREATE TABLE` migration runs exactly once. A migration in a transaction (the default) that fails simply rolls back and re-runs cleanly next time. Guards matter in two situations: (1) a migration with `runInTransaction: false` that fails partway, since its earlier statements have already committed and the whole migration re-runs on the next attempt; and (2) `run: onChange` / `run: always` migrations, which re-execute by design. Write those so re-running is safe.
 - **Migrations are identified by `fileName [title]` and a hash of their SQL.** Once a `run: once` migration has been applied, editing its SQL changes the hash and causes `update` to fail. This is intentional — it prevents silently altering history. The hash is sensitive to the SQL text, so even reformatting an already-applied migration will trip this check. If the database already matches the edited file, run `repair` to accept the new hash. `run: onChange` is the switch for objects that should re-apply when you edit them.
 - **Writing history without SQL is never implicit.** `update` only records migrations it actually applied (or `onError: Mark`). Stamping existing schema is `baseline`. Accepting a new hash for something already recorded is `repair`.
-- **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `run: onChange` / `run: always` migration keeps its original sequence so dry-run reorder detection still reflects first-apply order.
+- **Apply order is recorded globally.** Each first-time apply (or `onError: Mark`) gets the next `executed_sequence` across all deployments — not a counter that restarts at 1 every run. Re-applying a `run: onChange` / `run: always` migration keeps its original sequence.
 
 ### Deployment Lock
 
@@ -285,7 +285,7 @@ Ratchet does not track deleted migrations, and `dependsOn` is designed to stay c
 - **The referenced migrations are all excluded by the active context → hard error.** Depending on something that will not run in this context is a misconfiguration.
 - **The dependencies form a cycle → hard error**, with the cycle path printed.
 
-`dryrun` writes the fully resolved order to its plan file, and appends a footer if anything now applies in a different relative order than it did in the target database (from `executed_sequence`). That is harmless on this database but could fail on a fresh one — a hint to declare a `dependsOn` if the order is actually required.
+`dryrun` writes the fully resolved order to its plan file. Folder order in the starting file is the dependency gate; `dependsOn` is only for the cases that list cannot express.
 
 ## Known Limitations
 

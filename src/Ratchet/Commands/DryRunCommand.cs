@@ -62,48 +62,6 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
             stoppingToken.ThrowIfCancellationRequested();
             await WriteMigration(writer, migration);
         }
-
-        await WriteReorderFooter(writer, plan.Resolved, plan.Histories);
-    }
-
-    // Compares the resolved relative order of already-applied migrations against the order they
-    // were applied in the target database (ExecutedSequence). An inversion means a dependency or
-    // folder change moved a migration relative to something already applied — harmless on this
-    // database, but a signal it could fail on a fresh one unless the ordering is made explicit.
-    private static async Task WriteReorderFooter(StreamWriter writer, IReadOnlyList<Migration> resolvedInContext, IReadOnlyDictionary<string, MigrationHistory> histories)
-    {
-        var applied = resolvedInContext
-            .Select((migration, resolvedIndex) => (migration, resolvedIndex, history: histories.GetValueOrDefault(migration.Id)))
-            .Where(x => x.history is { ExecutedSequence: not null })
-            .OrderBy(x => x.resolvedIndex)
-            .ToList();
-
-        var inversions = new List<string>();
-        for (var i = 0; i < applied.Count; i++)
-        {
-            for (var j = i + 1; j < applied.Count; j++)
-            {
-                if (applied[i].history!.ExecutedSequence > applied[j].history!.ExecutedSequence)
-                    inversions.Add($"{applied[j].migration.Id}  now applies AFTER  {applied[i].migration.Id}  (previously before it)");
-            }
-        }
-
-        await writer.WriteLineAsync("-- ============================================================");
-        await writer.WriteLineAsync("-- Reorderings relative to applied history (informational)");
-        await writer.WriteLineAsync($"-- Target database applied {applied.Count} of these migrations previously.");
-        if (inversions.Count == 0)
-        {
-            await writer.WriteLineAsync("-- No reorderings relative to applied history.");
-            await writer.WriteLineAsync("-- ============================================================");
-            return;
-        }
-
-        await writer.WriteLineAsync($"-- {inversions.Count} pair(s) now resolve in a different relative order:");
-        await writer.WriteLineAsync("-- ------------------------------------------------------------");
-        foreach (var inversion in inversions)
-            await writer.WriteLineAsync($"--   {inversion}");
-        await writer.WriteLineAsync("-- Declare a dependsOn if the new order is required on a fresh database.");
-        await writer.WriteLineAsync("-- ============================================================");
     }
 
     // Transaction boundaries are emitted as comments rather than BEGIN/COMMIT because the executor

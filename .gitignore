@@ -261,8 +261,8 @@ UpgradeLog*.htm
 ServiceFabricBackup/
 *.rptproj.bak
 
-# Local Aspire dry-run plan
-src/AppHost/ratchet-plan.sql
+# Local Aspire dry-run plans
+src/AppHost/ratchet-plan*.sql
 
 # SQL Server files
 *.mdf

@@ -19,5 +19,8 @@ public sealed class SettingsTests
         Assert.Equal(Settings.DefaultDatabaseProvider, new Settings().ResolveDatabaseProvider());
         Assert.Equal("postgres", new Settings { DatabaseProvider = "" }.ResolveDatabaseProvider());
         Assert.Equal("mssql", new Settings { DatabaseProvider = "mssql" }.ResolveDatabaseProvider());
+        Assert.Equal("postgres", new Settings { DatabaseProvider = "Postgres" }.ResolveDatabaseProvider());
+        Assert.Equal("mssql", new Settings { DatabaseProvider = " MSSQL " }.ResolveDatabaseProvider());
+        Assert.Equal("sqlite", new Settings { DatabaseProvider = "SQLite" }.ResolveDatabaseProvider());
     }
 }

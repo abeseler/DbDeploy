@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>5.0.0</Version>
+    <Version>5.0.1</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseAppHost>false</UseAppHost>
@@ -24,13 +24,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Ratchet.Tests" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-    <Content Include="Migrations\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>Migrations\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-    </Content>
   </ItemGroup>
 
 </Project>
