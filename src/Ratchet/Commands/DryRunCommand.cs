@@ -21,17 +21,17 @@ internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository
             return planError;
         ArgumentNullException.ThrowIfNull(plan);
 
-        var outputPath = ResolveOutputPath();
+        var outputPath = ResolveOutputPath(settings.Value.OutputFile);
         await WritePlan(outputPath, plan, stoppingToken);
 
         logger.LogInformation("{Report}", PlanReport.DryRun(plan, outputPath));
         return Success.Default;
     }
 
-    private string ResolveOutputPath()
+    internal static string ResolveOutputPath(string? outputFile)
     {
-        var file = string.IsNullOrWhiteSpace(settings.Value.OutputFile) ? DefaultOutputFile : settings.Value.OutputFile;
-        return Path.GetFullPath(file, AppDomain.CurrentDomain.BaseDirectory);
+        var file = string.IsNullOrWhiteSpace(outputFile) ? DefaultOutputFile : outputFile;
+        return Path.GetFullPath(file, Directory.GetCurrentDirectory());
     }
 
     private async Task WritePlan(string path, DeploymentPlan plan, CancellationToken stoppingToken)

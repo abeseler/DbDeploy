@@ -74,7 +74,7 @@ Migration files are parsed **before** the lock is taken, so a large set does not
 
 ### Dry Run
 
-`dryrun` prints the same report as `status` (counts and identities) and writes the SQL that `update` would run to a plan file (`--outputFile`, default `ratchet-plan.sql`). The plan file header also lists pending-apply, pending-baseline, and needs-repair identities. It does not take the lock and applies nothing.
+`dryrun` prints the same report as `status` (counts and identities) and writes the SQL that `update` would run to a plan file (`--outputFile`, default `ratchet-plan.sql`). A relative `--outputFile` is resolved from the process working directory, same as `--migrations`. The plan file header also lists pending-apply, pending-baseline, and needs-repair identities. It does not take the lock and applies nothing.
 
 Use it as a review gate: generate the plan, publish it as an artifact, run `update` once someone has looked at it.
 
@@ -128,7 +128,7 @@ Flags and environment variables set the same options. Env vars use the `Deploy__
 | `--version` | | print the version and exit |
 | `--logLevel` | `Serilog__MinimumLevel__Default` | `Information` (`Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`) |
 
-Relative `--migrations` paths are resolved from the process working directory.
+Relative `--migrations` and `--outputFile` paths are resolved from the process working directory.
 
 Releases are the `<Version>` in `src/Ratchet/Ratchet.csproj`. A push to `main` tags that number when it is newer than the latest git tag; Docker builds from the tag. A commit that does not bump `<Version>` is not a release.
 
