@@ -1,4 +1,12 @@
 #!/bin/bash
+set -euo pipefail
+
+# Source of truth is <Version> in src/Ratchet/Ratchet.csproj.
+# This script tags that number when it is newer than the latest git tag.
+# It does not bump the project. A commit that does not change Version is not a release.
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+CSPROJ="$SCRIPT_DIR/src/Ratchet/Ratchet.csproj"
 
 COMMIT_MESSAGE=$(git log -1 --pretty=%B)
 echo "Commit message: $COMMIT_MESSAGE"
@@ -7,6 +15,19 @@ if [[ $COMMIT_MESSAGE == nobuild:* ]]
 then
     echo "Skipping version tagging due to nobuild commit"
     exit 0
+fi
+
+if [[ ! -f "$CSPROJ" ]]
+then
+    echo "Project file not found: $CSPROJ"
+    exit 1
+fi
+
+PROJECT_VERSION=$(sed -n 's/.*<Version>\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)<\/Version>.*/\1/p' "$CSPROJ" | head -n 1)
+if [[ ! $PROJECT_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+then
+    echo "Could not read a semver <Version> from $CSPROJ"
+    exit 1
 fi
 
 if [ -z "$(git tag -l)" ]
@@ -24,36 +45,31 @@ fi
 
 if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
 then
-    echo "Current VERSION: $TAG"
+    echo "Latest tag: $TAG"
 else
     echo "Invalid tag: $TAG"
     exit 1
 fi
 
-MAJOR=$(cut -d'.' -f1 <<<$TAG)
-MAJOR=${MAJOR:1}
-MINOR=$(cut -d'.' -f2 <<<$TAG)
-PATCH=$(cut -d'.' -f3 <<<$TAG)
+TAG_VERSION=${TAG#v}
+echo "Project VERSION: $PROJECT_VERSION"
 
-if [[ $COMMIT_MESSAGE == release:* ]]
+if [ "$PROJECT_VERSION" = "$TAG_VERSION" ]
 then
-    MAJOR=$((MAJOR+1))
-    MINOR=0
-    PATCH=0
-elif [[ $COMMIT_MESSAGE == feat:* ]]
-then
-    MINOR=$((MINOR+1))
-    PATCH=0
-else
-    PATCH=$((PATCH+1))
+    echo "Project version matches latest tag. Nothing to tag."
+    exit 0
 fi
 
-VERSION="v$MAJOR.$MINOR.$PATCH"
+LOWEST=$(printf '%s\n%s\n' "$PROJECT_VERSION" "$TAG_VERSION" | sort -V | head -n 1)
+if [ "$LOWEST" = "$PROJECT_VERSION" ]
+then
+    echo "Project version $PROJECT_VERSION is behind latest tag $TAG"
+    exit 1
+fi
+
+VERSION="v$PROJECT_VERSION"
 echo "NEW VERSION: $VERSION"
 
-if [ $TAG != $VERSION ]
-then
-    git tag -a $VERSION -m "New version: $VERSION"
-    echo "Tagging new version: $VERSION"
-    git push origin $VERSION
-fi
+git tag -a "$VERSION" -m "New version: $VERSION"
+echo "Tagging new version: $VERSION"
+git push origin "$VERSION"

@@ -39,7 +39,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 ## Commands
 
-Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database.
+Ratchet runs a single command per invocation, selected with `--command` (or `Deploy__Command`). `--help` / `-h` prints usage and exits without connecting to the database. `--version` prints the assembly version (the `<Version>` in the project) and exits.
 
 - **`update`** — Apply pending migrations in resolved order. This is the normal deployment command. It runs SQL and records only what it applied (or `onError: Mark`). Checksum drift fails the run — see `repair`.
 - **`status`** — Print pending apply, pending baseline, needs repair, up to date, and filtered-out counts, with each identity listed. Read-only; no lock. Drift is listed under needs repair here and is a failure on `update`. New files count as pending apply only — pending baseline is leftover history with no hash.
@@ -125,9 +125,12 @@ Flags and environment variables set the same options. Env vars use the `Deploy__
 | `--connectionRetryDelay` | `Deploy__ConnectionRetryDelaySeconds` | `5` |
 | `--outputFile` | `Deploy__OutputFile` | `ratchet-plan.sql` |
 | `--help`, `-h` | | print usage and exit |
+| `--version` | | print the version and exit |
 | `--logLevel` | `Serilog__MinimumLevel__Default` | `Information` (`Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`) |
 
 Relative `--migrations` paths are resolved from the process working directory.
+
+Releases are the `<Version>` in `src/Ratchet/Ratchet.csproj`. A push to `main` tags that number when it is newer than the latest git tag; Docker builds from the tag. A commit that does not bump `<Version>` is not a release.
 
 ## Starting File
 

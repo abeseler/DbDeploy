@@ -18,6 +18,12 @@ if (Usage.IsHelpRequest(args) || Usage.IsHelpCommand(config["Deploy:Command"]))
     return;
 }
 
+if (Usage.IsVersionRequest(args) || Usage.IsVersionCommand(config["Deploy:Command"]))
+{
+    Usage.WriteVersion();
+    return;
+}
+
 var loggerConfiguration = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)

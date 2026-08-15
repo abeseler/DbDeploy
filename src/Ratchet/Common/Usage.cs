@@ -11,7 +11,15 @@ internal static class Usage
     public static bool IsHelpCommand(string? command) =>
         command is not null && command.Equals("help", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsVersionRequest(IEnumerable<string> args) =>
+        args.Any(a => a.Equals("--version", StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsVersionCommand(string? command) =>
+        command is not null && command.Equals("version", StringComparison.OrdinalIgnoreCase);
+
     public static void Write() => Console.WriteLine(Text);
+
+    public static void WriteVersion() => Console.WriteLine($"Ratchet {AppVersion.Current}");
 
     private static readonly string CommandList = string.Join("|", CommandNames.All);
     private static readonly string CommandCsv = string.Join(", ", CommandNames.All);
@@ -22,6 +30,7 @@ internal static class Usage
         Usage:
           ratchet --command <{CommandList}> [options]
           ratchet --help
+          ratchet --version
 
         Options:
           --command <name>            Command to run: {CommandCsv}
@@ -36,6 +45,7 @@ internal static class Usage
           --outputFile <file>         dryrun plan path. Default: ratchet-plan.sql
           --logLevel <level>          Verbose, Debug, Information, Warning, Error, Fatal
           --help, -h                  Show this help
+          --version                   Print the version and exit
 
         Environment variables use the Deploy__ prefix (for example Deploy__Command).
         """;

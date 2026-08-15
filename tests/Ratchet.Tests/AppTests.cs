@@ -80,6 +80,29 @@ public sealed class AppTests
     }
 
     [Fact]
+    public async Task RunAsync_VersionCommandExitsZeroWithoutConnecting()
+    {
+        var previous = Environment.ExitCode;
+        var provider = new FailingDbProvider();
+        try
+        {
+            Environment.ExitCode = 1;
+            var settings = Options.Create(new Settings { Command = "version" });
+            var repository = new Repository(provider, NullLogger<Repository>.Instance);
+            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+
+            await app.RunAsync();
+
+            Assert.Equal(0, Environment.ExitCode);
+            Assert.Equal(0, provider.ConnectCalls);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_HelpCommandExitsZeroWithoutConnecting()
     {
         var previous = Environment.ExitCode;

@@ -19,6 +19,13 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
             return;
         }
 
+        if (Usage.IsVersionCommand(settings.Value.Command))
+        {
+            Usage.WriteVersion();
+            Environment.ExitCode = 0;
+            return;
+        }
+
         if (CommandNames.TryNormalize(settings.Value.Command, out var commandName) is false)
         {
             Environment.ExitCode = 1;
@@ -27,7 +34,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
             return;
         }
 
-        logger.LogInformation("Starting Ratchet...");
+        logger.LogInformation("Starting Ratchet {Version} ({Command})", AppVersion.Current, commandName);
         _startedTimestamp = Stopwatch.GetTimestamp();
 
         if (CommandNames.RequiresDatabase(commandName) || settings.Value.IsDatabaseConfigured)
@@ -65,7 +72,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
         Environment.ExitCode = result.Match(
             onSuccess: _ =>
             {
-                logger.LogInformation("Completed successfully in {Duration}", duration);
+                logger.LogInformation("Completed {Command} successfully in {Duration}", commandName, duration);
                 return 0;
             },
             onFailure: error =>
