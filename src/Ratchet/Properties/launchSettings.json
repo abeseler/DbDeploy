@@ -5,13 +5,13 @@
       "workingDirectory": ".",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Deploy__Command": "update",
-        "Deploy__WorkingDirectory": "../AppHost/Migrations",
-        "Deploy__StartingFile": "migrations_postgres.json",
-        "Deploy__DatabaseProvider": "postgres",
-        "Deploy__ConnectionString": "Host=localhost;Port=5432;Database=App;User Id=postgres;Password=postgres",
-        "Deploy__ConnectionAttempts": "3",
-        "Deploy__ConnectionRetryDelaySeconds": "5",
+        "Ratchet__Command": "update",
+        "Ratchet__WorkingDirectory": "../AppHost/Migrations",
+        "Ratchet__StartingFile": "migrations_postgres.json",
+        "Ratchet__DatabaseProvider": "postgres",
+        "Ratchet__ConnectionString": "Host=localhost;Port=5432;Database=App;User Id=postgres;Password=postgres",
+        "Ratchet__ConnectionAttempts": "3",
+        "Ratchet__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     },
@@ -20,13 +20,13 @@
       "workingDirectory": ".",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Deploy__Command": "dryrun",
-        "Deploy__WorkingDirectory": "../AppHost/Migrations",
-        "Deploy__StartingFile": "migrations_sqlite.json",
-        "Deploy__DatabaseProvider": "sqlite",
-        "Deploy__ConnectionString": "Data Source=App.db",
-        "Deploy__ConnectionAttempts": "3",
-        "Deploy__ConnectionRetryDelaySeconds": "5",
+        "Ratchet__Command": "dryrun",
+        "Ratchet__WorkingDirectory": "../AppHost/Migrations",
+        "Ratchet__StartingFile": "migrations_sqlite.json",
+        "Ratchet__DatabaseProvider": "sqlite",
+        "Ratchet__ConnectionString": "Data Source=App.db",
+        "Ratchet__ConnectionAttempts": "3",
+        "Ratchet__ConnectionRetryDelaySeconds": "5",
         "Serilog__MinimumLevel__Default": "Debug"
       }
     }

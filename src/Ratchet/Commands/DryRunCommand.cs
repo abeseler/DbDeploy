@@ -1,31 +1,24 @@
-using Ratchet.FileHandling;
-
 namespace Ratchet.Commands;
 
-internal sealed class DryRunCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<DryRunCommand> logger) : ICommand
+internal sealed class DryRunCommand(MigrationLoader loader, MigrationJournal journal, IOptions<Settings> settings, ILogger<DryRunCommand> logger) : ICommand
 {
     private const string DefaultOutputFile = "ratchet-plan.sql";
     public string Name => CommandNames.DryRun;
 
-    public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
+    public async Task<Error?> ExecuteAsync(CancellationToken stoppingToken = default)
     {
-        logger.LogInformation("Executing {Command} command", Name);
+        if (!loader.Load(stoppingToken).TryGet(out var parsed, out var loadError))
+            return loadError;
 
-        var (parsed, extractionError) = extractor.ExtractFromStartingFile(stoppingToken);
-        if (extractionError is not null)
-            return extractionError;
-
-        var histories = await repo.GetAllMigrationHistories(stoppingToken);
-        var (plan, planError) = DeploymentPlanner.Prepare(parsed!.Values.ToList(), histories, settings.Value.ParseContexts());
-        if (planError is not null)
+        var histories = await journal.GetHistories(stoppingToken);
+        if (!DeploymentPlanner.Prepare(parsed, histories, settings.Value.ParseContexts()).TryGet(out var plan, out var planError))
             return planError;
-        ArgumentNullException.ThrowIfNull(plan);
 
         var outputPath = ResolveOutputPath(settings.Value.OutputFile);
         await WritePlan(outputPath, plan, stoppingToken);
 
         logger.LogInformation("{Report}", PlanReport.DryRun(plan, outputPath));
-        return Success.Default;
+        return null;
     }
 
     internal static string ResolveOutputPath(string? outputFile)

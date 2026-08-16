@@ -13,42 +13,59 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
     private readonly List<string> _sqlStatements = [];
     private readonly StringBuilder _stringBuilder = new();
 
-    public void AddHeader(string input)
+    public Error? AddHeader(string input)
     {
-        _header = JsonSerializer.Deserialize<MigrationHeader>(input, jsonOptions);
-    }
-
-    public void AddToSql(string input)
-    {
-        if (input.StartsWith("--NewStatement", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            if (_stringBuilder.Length > 0)
-            {
-                var sql = _stringBuilder.ToString().Trim();
-                _sqlStatements.Add(sql);
-            }
-            _stringBuilder.Clear();
-            return;
+            _header = JsonSerializer.Deserialize<MigrationHeader>(input, jsonOptions);
+            return null;
         }
-
-        _stringBuilder.AppendLine(input);
+        catch (JsonException ex)
+        {
+            return Error.From(ex);
+        }
     }
 
-    public Migration? Build()
+    public void AddToSql(string input) => _stringBuilder.AppendLine(input);
+
+    public void FinishStatement()
+    {
+        if (_stringBuilder.Length == 0)
+            return;
+
+        _sqlStatements.Add(_stringBuilder.ToString().Trim());
+        _stringBuilder.Clear();
+    }
+
+    public Error? Build(out Migration? migration)
     {
         if (_stringBuilder.Length > 0)
         {
             _sqlStatements.Add(_stringBuilder.ToString());
             _stringBuilder.Clear();
         }
-        var result = _header is { Title: not null } && _sqlStatements.Count > 0 ? new Migration()
+
+        migration = null;
+        if (_header is not { Title: not null } || _sqlStatements.Count == 0)
+        {
+            Reset();
+            return null;
+        }
+
+        if (TryParseRun(_header, out var run) is { } runError)
+        {
+            Reset();
+            return runError;
+        }
+
+        migration = new Migration
         {
             FileName = file,
             Title = _header.Title,
             SqlStatements = [.. _sqlStatements],
             DependsOn = _header.DependsOn ?? [],
             Hash = CalculateHash(_sqlStatements),
-            Run = ParseRun(_header),
+            Run = run,
             RunInTransaction = _header.RunInTransaction ?? true,
             ContextRequired = requiresContext || (_header.ContextRequired ?? false),
             ContextFilter = [.. _header.ContextFilter ?? [], .. contextFilter],
@@ -59,28 +76,42 @@ internal sealed class MigrationBuilder(string file, string[] contextFilter, bool
                 string s when s.Equals("Mark", StringComparison.OrdinalIgnoreCase) => Migration.ErrorHandling.Mark,
                 _ => Migration.ErrorHandling.Fail
             }
-        } : null;
+        };
 
-        _header = null;
-        _sqlStatements.Clear();
-
-        return result;
+        Reset();
+        return null;
     }
 
-    private static Migration.RunMode ParseRun(MigrationHeader header)
+    private void Reset()
     {
-        if (header.RunAlways is not null || header.RunOnChange is not null)
-            throw new Exception("runAlways and runOnChange were replaced by run: once | onChange | always | never");
+        _header = null;
+        _sqlStatements.Clear();
+    }
 
-        return header.Run switch
+    private static Error? TryParseRun(MigrationHeader header, out Migration.RunMode run)
+    {
+        run = Migration.RunMode.Once;
+        if (header.RunAlways is not null || header.RunOnChange is not null)
+            return Errors.ReplacedRunFlags;
+
+        switch (header.Run)
         {
-            null or "" => Migration.RunMode.Once,
-            string s when s.Equals("once", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Once,
-            string s when s.Equals("onChange", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.OnChange,
-            string s when s.Equals("always", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Always,
-            string s when s.Equals("never", StringComparison.OrdinalIgnoreCase) => Migration.RunMode.Never,
-            string s => throw new Exception($"Invalid run value '{s}'. Use once, onChange, always, or never.")
-        };
+            case null or "":
+                return null;
+            case string s when s.Equals("once", StringComparison.OrdinalIgnoreCase):
+                return null;
+            case string s when s.Equals("onChange", StringComparison.OrdinalIgnoreCase):
+                run = Migration.RunMode.OnChange;
+                return null;
+            case string s when s.Equals("always", StringComparison.OrdinalIgnoreCase):
+                run = Migration.RunMode.Always;
+                return null;
+            case string s when s.Equals("never", StringComparison.OrdinalIgnoreCase):
+                run = Migration.RunMode.Never;
+                return null;
+            case string s:
+                return Errors.InvalidRunValue(s);
+        }
     }
 
     private static string CalculateHash(IReadOnlyList<string> input)

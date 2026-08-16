@@ -24,14 +24,12 @@ internal static class DeploymentPlanner
         IReadOnlyDictionary<string, MigrationHistory> histories,
         string[] contexts)
     {
-        var applied = histories.Values.Select(h => new AppliedMigration(h.FileName, h.Title)).ToList();
         var ignored = parsed.Where(m => m.Run is Migration.RunMode.Never).ToList();
         var active = parsed.Where(m => m.Run is not Migration.RunMode.Never).ToList();
-        var (ordered, error) = MigrationOrderResolver.Resolve(active, contexts, applied);
-        if (error is not null)
+        if (!MigrationOrderResolver.Resolve(active, contexts, histories.Values).TryGet(out var ordered, out var error))
             return error;
 
-        return Build(ordered!.Concat(ignored), histories, contexts);
+        return Build(ordered.Concat(ignored), histories, contexts);
     }
 
     public static DeploymentPlan Build(
@@ -45,6 +43,7 @@ internal static class DeploymentPlanner
         var toRepair = new List<PlannedMigration>();
         var filteredOut = new List<Migration>();
         var ignored = new List<Migration>();
+        var historiesById = new Dictionary<string, MigrationHistory>(histories, StringComparer.OrdinalIgnoreCase);
 
         foreach (var migration in migrations)
         {
@@ -61,7 +60,7 @@ internal static class DeploymentPlanner
             }
 
             resolved.Add(migration);
-            histories.TryGetValue(migration.Id, out var history);
+            historiesById.TryGetValue(migration.Id, out var history);
 
             if (history is { Hash: null })
             {
@@ -72,7 +71,7 @@ internal static class DeploymentPlanner
             if (history is null)
                 toBaseline.Add(new(migration, history));
 
-            if (migration.HasInvalidChange(history))
+            if (migration.HasDrift(history))
                 toRepair.Add(new(migration, history));
 
             if (history is null
@@ -81,7 +80,7 @@ internal static class DeploymentPlanner
                 toApply.Add(new(migration, history));
         }
 
-        var applyIds = toApply.Select(p => p.Migration.Id).ToHashSet(StringComparer.Ordinal);
+        var applyIds = toApply.Select(p => p.Migration.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var pendingBaseline = toBaseline.Where(b => applyIds.Contains(b.Migration.Id) is false).ToList();
 
         return new DeploymentPlan
@@ -93,7 +92,7 @@ internal static class DeploymentPlanner
             ToRepair = toRepair,
             FilteredOut = filteredOut,
             Ignored = ignored,
-            Histories = histories
+            Histories = historiesById
         };
     }
 }

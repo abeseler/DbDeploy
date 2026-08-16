@@ -9,11 +9,11 @@ Ratchet runs as a one-shot container: point it at a directory of SQL migrations,
 ```bash
 docker run --rm \
   -v ./migrations:/app/Migrations \
-  -e Deploy__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
+  -e Ratchet__ConnectionString="Host=db;Database=app;Username=postgres;Password=..." \
   abeseler/ratchet update
 ```
 
-Put a `ratchet.json` starting file in that mounted directory (see [Starting File](#starting-file)). Override the name with `--startingFile` / `Deploy__StartingFile` if you need to.
+Put a `ratchet.json` starting file in that mounted directory (see [Starting File](#starting-file)). Override the name with `--startingFile` / `Ratchet__StartingFile` if you need to.
 
 Locally, the defaults are a `Migrations` working directory and `ratchet.json` inside it. See [Configuration](#configuration) for all options.
 
@@ -37,7 +37,7 @@ Ratchet grew out of experience with Flyway and Liquibase, keeping the parts that
 
 ## Commands
 
-Ratchet runs a single command per invocation. Prefer a subcommand (`ratchet update`); `--command` and `Deploy__Command` are the same thing for flags and environment variables. Do not pass a subcommand and `--command` together. `--help` / `-h` prints usage and exits without connecting to the database. `--version` prints the assembly version (the `<Version>` in the project) and exits.
+Ratchet runs a single command per invocation. Prefer a subcommand (`ratchet update`); `--command` and `Ratchet__Command` are the same thing for flags and environment variables. Do not pass a subcommand and `--command` together. `--help` / `-h` prints usage and exits without connecting to the database. `--version` prints the assembly version (the `<Version>` in the project) and exits.
 
 - **`update`** — Apply pending migrations in resolved order. This is the normal deployment command. It runs SQL and records only what it applied (or `onError: Mark`). Checksum drift fails the run — see `repair`.
 - **`status`** — Print pending apply, pending baseline, needs repair, up to date, and filtered-out counts, with each identity listed. Read-only; no lock. Drift is listed under needs repair here and is a failure on `update`. New files count as pending apply only — pending baseline is leftover history with no hash.
@@ -108,23 +108,23 @@ Both commands take the deployment lock, honor `--contexts`, and can be re-run sa
 
 ## Configuration
 
-Flags and environment variables set the same options. Env vars use the `Deploy__` prefix (and `__` for nesting). The image is on [Docker Hub](https://hub.docker.com/r/abeseler/ratchet). Mount your SQL at `/app/Migrations`.
+Flags and environment variables set the same options. Env vars use the `Ratchet__` prefix (and `__` for nesting). The image is on [Docker Hub](https://hub.docker.com/r/abeseler/ratchet). Mount your SQL at `/app/Migrations`.
 
 | Flag | Environment | Default |
 |---|---|---|
-| `--command` | `Deploy__Command` | (required) same as the subcommand: `update`, `status`, `validate`, `dryrun`, `baseline`, `repair` |
-| `--migrations` | `Deploy__WorkingDirectory` | `Migrations` (in the container: `/app/Migrations`) |
-| `--startingFile` | `Deploy__StartingFile` | `ratchet.json` in the working directory |
-| `--provider` | `Deploy__DatabaseProvider` | `postgres` (`postgres`, `mssql`, or `sqlite`) |
-| `--connectionString` | `Deploy__ConnectionString` | (required except file-only `validate`) |
-| `--contexts` | `Deploy__Contexts` | comma-separated; empty means no extra context |
-| `--maxLockWait` | `Deploy__LockWaitMaxSeconds` | `120` |
-| `--connectionAttempts` | `Deploy__ConnectionAttempts` | `10` |
-| `--connectionRetryDelay` | `Deploy__ConnectionRetryDelaySeconds` | `5` |
-| `--outputFile` | `Deploy__OutputFile` | `ratchet-plan.sql` |
+| `--command` | `Ratchet__Command` | (required) same as the subcommand: `update`, `status`, `validate`, `dryrun`, `baseline`, `repair` |
+| `--migrations` | `Ratchet__WorkingDirectory` | `Migrations` (in the container: `/app/Migrations`) |
+| `--startingFile` | `Ratchet__StartingFile` | `ratchet.json` in the working directory |
+| `--provider` | `Ratchet__DatabaseProvider` | `postgres` (`postgres`, `mssql`, or `sqlite`) |
+| `--connectionString` | `Ratchet__ConnectionString` | (required except file-only `validate`) |
+| `--contexts` | `Ratchet__Contexts` | comma-separated; empty means no extra context |
+| `--maxLockWait` | `Ratchet__LockWaitMaxSeconds` | `120` |
+| `--connectionAttempts` | `Ratchet__ConnectionAttempts` | `10` |
+| `--connectionRetryDelay` | `Ratchet__ConnectionRetryDelaySeconds` | `5` |
+| `--outputFile` | `Ratchet__OutputFile` | `ratchet-plan.sql` |
 | `--help`, `-h` | | print usage and exit |
 | `--version` | | print the version and exit |
-| `--logLevel` | `Serilog__MinimumLevel__Default` | `Information` (`Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`) |
+| `--logLevel` | `Serilog__MinimumLevel__Default` | `Information` (`Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`). `Debug` is the useful extra level: include walk, contexts, parse count, overlapping includes, lock wait. |
 
 Relative `--migrations` and `--outputFile` paths are resolved from the process working directory.
 
@@ -168,13 +168,15 @@ The starting file is a JSON array of includes. Files and directories in `include
 
 Migrations run in include order. SQL files in a directory run in alphabetical order. Non-`.sql` files in that directory are skipped, so a `README.md` next to the scripts is harmless. Directories are **not** walked recursively: list each folder you want applied, in the order it should run (`dbo/Tables`, then `dbo/ForeignKeys`, not `dbo`). That is how you stay in charge of names and of “in between” stages — you insert a line in the array instead of renaming everything.
 
+The same file listed more than once — twice in `include`, the same folder twice, or a file and the folder that contains it — is fine. The first parse wins; later copies are dropped. Context and `errorIfMissingOrEmpty` from that first listing are what count.
+
 The layout I recommend is one folder per object type and one file per object, with those folders listed in dependency order. A copy-paste starter is in [`samples/object-folders`](samples/object-folders) (`PreDeploy`, `Extensions`, `Schemas`, `Types`, `Sequences`, `Tables`, `ForeignKeys`, `Functions`, `Views`, `Procedures`, `Triggers`, `Grants`, `PostDeploy`, plus a `Seed` include). A single `all_migrations` folder of versioned files is fine too. The tool does not care what you call them.
 
 ## Migrations
 
-Migrations are SQL files under the working directory (`Migrations` by default). A file can hold one or more migrations, and a migration can hold one or more statements. Statements are separated by a line that starts with `--NewStatement`.
+Migrations are SQL files under the working directory (`Migrations` by default). A file can hold one or more migrations, and a migration can hold one or more statements. Statements are separated by a dedicated line `-- NewStatement` (the space after `--` is optional). A trailing note after the token is allowed and is not sent to the database.
 
-A migration is a block of SQL preceded by a comment that starts with `/* Migration` and ends with `*/`. The body of that comment is JSON. A title-only header can be one line.
+A migration is a block of SQL preceded by a comment that starts with `/* Migration` followed by `{` or a newline, and ends with `*/`. The body of that comment is JSON. A title-only header can be one line.
 
 ```sql
 /* Migration { "title": "widget:createTable" } */
@@ -293,6 +295,6 @@ Deliberate tradeoffs, so they are not surprises:
 
 - **No rollback.** Recovery is a human decision. See [Design & Philosophy](#design--philosophy).
 - **Atomicity is per migration, not per deployment.** A failure part-way through leaves earlier migrations applied; re-running resumes from the first unapplied one. See [Deployment Semantics](#deployment-semantics).
-- **Statement splitting is textual.** Statements are separated by lines beginning with `--NewStatement`. A line that begins with that token inside a string literal or comment would split incorrectly. Keep the separator on its own dedicated line.
+- **Statement splitting is textual.** Statements are separated by a dedicated line `-- NewStatement` (space after `--` optional; a trailing note is allowed). A line that is only that token, inside a string literal or a real comment, would split incorrectly. Keep the separator on its own dedicated line.
 - **Hashing is for change detection, not security.** Applied migrations are fingerprinted with MD5; it is not a cryptographic guarantee.
 - **Three databases.** PostgreSQL, SQL Server, and SQLite.

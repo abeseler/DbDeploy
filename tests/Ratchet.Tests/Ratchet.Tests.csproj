@@ -28,13 +28,4 @@
     <ProjectReference Include="..\..\src\Ratchet\Ratchet.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Migrations\Example.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Migrations\Example.sql">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>

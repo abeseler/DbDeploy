@@ -1,4 +1,4 @@
-namespace Ratchet.Common;
+namespace Ratchet.Cli;
 
 internal static class Usage
 {
@@ -48,6 +48,6 @@ internal static class Usage
           --help, -h                  Show this help
           --version                   Print the version and exit
 
-        Environment variables use the Deploy__ prefix (for example Deploy__Command).
+        Environment variables use the Ratchet__ prefix (for example Ratchet__Command).
         """;
 }

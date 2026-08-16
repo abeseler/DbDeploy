@@ -1,33 +1,43 @@
-namespace Ratchet.FileHandling;
+namespace Ratchet.Parsing;
 
 internal static class SqlFileParser
 {
-    public static Result<List<Migration>> Parse(FileInfo file, string relativePath, MigrationIncludes? include, CancellationToken stoppingToken = default)
+    public static Result<List<Migration>> Parse(
+        string sql,
+        string relativePath,
+        ParseOptions? options = null,
+        CancellationToken stoppingToken = default)
     {
-        if (!file.Exists && (include?.ErrorIfMissingOrEmpty ?? true))
-            return Exceptions.FileDoesNotExist;
+        using var reader = new StringReader(sql);
+        return Parse(reader, relativePath, options, stoppingToken);
+    }
 
+    public static Result<List<Migration>> Parse(
+        TextReader reader,
+        string relativePath,
+        ParseOptions? options = null,
+        CancellationToken stoppingToken = default)
+    {
         var migrations = new List<Migration>();
-        var migrationBuilder = new MigrationBuilder(relativePath, include?.ContextFilter ?? [], include?.ContextRequired ?? false);
+        var migrationBuilder = new MigrationBuilder(relativePath, options?.ContextFilter ?? [], options?.ContextRequired ?? false);
         var headerBuilder = new StringBuilder();
         var buildingHeader = false;
 
         try
         {
-            using var reader = file.OpenText();
             while (reader.ReadLine() is { } line)
             {
                 stoppingToken.ThrowIfCancellationRequested();
 
-                if (line.StartsWith("/* Migration", StringComparison.OrdinalIgnoreCase))
+                if (SqlFileTokens.TryStartHeader(line, out var remainder))
                 {
                     if (FinishMigration(migrations, migrationBuilder) is { } duplicate)
                         return duplicate;
 
-                    var remainder = line.Length > 12 ? line[12..] : "";
                     if (TryTakeHeaderClose(remainder, out var sameLineJson))
                     {
-                        migrationBuilder.AddHeader(sameLineJson);
+                        if (migrationBuilder.AddHeader(sameLineJson) is { } headerError)
+                            return headerError;
                         buildingHeader = false;
                     }
                     else
@@ -47,34 +57,49 @@ internal static class SqlFileParser
                     }
 
                     headerBuilder.Append(closingJson);
-                    migrationBuilder.AddHeader(headerBuilder.ToString());
+                    if (migrationBuilder.AddHeader(headerBuilder.ToString()) is { } headerError)
+                        return headerError;
                     headerBuilder.Clear();
                     buildingHeader = false;
+                    continue;
+                }
+                if (SqlFileTokens.IsStatementSeparator(line))
+                {
+                    migrationBuilder.FinishStatement();
                     continue;
                 }
                 if (line.Length > 0)
                     migrationBuilder.AddToSql(line);
             }
 
+            if (buildingHeader)
+                return Errors.UnclosedMigrationHeader;
+
             if (FinishMigration(migrations, migrationBuilder) is { } lastDuplicate)
                 return lastDuplicate;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            return new Exception(ex.Message);
+            return Error.From(ex);
         }
 
-
-        return migrations.Count == 0 && (include?.ErrorIfMissingOrEmpty ?? true) ? Exceptions.FileIsEmpty : migrations;
+        return migrations.Count == 0 && (options?.ErrorIfMissingOrEmpty ?? true) ? Errors.FileIsEmpty : migrations;
     }
 
-    private static Exception? FinishMigration(List<Migration> migrations, MigrationBuilder builder)
+    private static Error? FinishMigration(List<Migration> migrations, MigrationBuilder builder)
     {
-        if (builder.Build() is not { } migration)
+        if (builder.Build(out var migration) is { } error)
+            return error;
+
+        if (migration is null)
             return null;
 
         if (HasDuplicateTitle(migrations, migration.Title))
-            return Exceptions.DuplicateTitle(migration.Title);
+            return Errors.DuplicateTitle(migration.Title);
 
         migrations.Add(migration);
         return null;

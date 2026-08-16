@@ -1,4 +1,4 @@
-namespace Ratchet.FileHandling;
+namespace Ratchet.Parsing;
 
 internal sealed class MigrationIncludes
 {

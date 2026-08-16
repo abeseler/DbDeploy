@@ -1,6 +1,6 @@
 namespace Ratchet;
 
-internal sealed class App(Repository repository, CommandResolver commands, IOptions<Settings> settings, ILogger<App> logger)
+internal sealed class App(MigrationJournal journal, CommandResolver commands, IOptions<Settings> settings, ILogger<App> logger)
 {
     private long _startedTimestamp;
     public async Task RunAsync(CancellationToken stoppingToken = default)
@@ -10,7 +10,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
             Usage.Write();
             if (string.IsNullOrWhiteSpace(settings.Value.Command))
             {
-                logger.LogCritical("No command specified. Pass a subcommand (ratchet update), --command, or Deploy__Command");
+                logger.LogError("No command specified. Pass a subcommand (ratchet update), --command, or Ratchet__Command");
                 Environment.ExitCode = 1;
                 return;
             }
@@ -35,6 +35,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
         }
 
         logger.LogInformation("Starting Ratchet {Version} ({Command})", AppVersion.Current, commandName);
+        logger.LogDebug("Contexts: {Contexts}", FormatContexts(settings.Value.ParseContexts()));
         _startedTimestamp = Stopwatch.GetTimestamp();
 
         if (CommandNames.RequiresDatabase(commandName) || settings.Value.IsDatabaseConfigured)
@@ -46,7 +47,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
             {
                 try
                 {
-                    await repository.EnsureMigrationTablesExist(stoppingToken);
+                    await journal.EnsureTables(stoppingToken);
                     break;
                 }
                 catch (Exception ex)
@@ -54,7 +55,7 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
                     connectionAttemptsRemaining--;
                     if (connectionAttemptsRemaining <= 0)
                     {
-                        logger.LogCritical("Failed to connect to the database. {ErrorMessage}. No more retries left.", ex.Message);
+                        logger.LogError("Failed to connect to the database. {ErrorMessage}. No more retries left.", ex.Message);
                         Environment.ExitCode = 1;
                         return;
                     }
@@ -66,19 +67,20 @@ internal sealed class App(Repository repository, CommandResolver commands, IOpti
         }
 
         var command = commands.Resolve(commandName);
-        var result = await command.ExecuteAsync(stoppingToken);
+        var error = await command.ExecuteAsync(stoppingToken);
         var duration = Stopwatch.GetElapsedTime(_startedTimestamp);
 
-        Environment.ExitCode = result.Match(
-            onSuccess: _ =>
-            {
-                logger.LogInformation("Completed {Command} successfully in {Duration}", commandName, duration);
-                return 0;
-            },
-            onFailure: error =>
-            {
-                logger.LogError("Command failed: {Error}", error.Message);
-                return 1;
-            });
+        if (error is not null)
+        {
+            logger.LogError("Command failed: {Error}", error.Message);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        logger.LogInformation("Completed {Command} successfully in {Duration}", commandName, duration);
+        Environment.ExitCode = 0;
     }
+
+    private static string FormatContexts(string[] contexts) =>
+        contexts.Length == 0 ? "(none)" : string.Join(", ", contexts);
 }

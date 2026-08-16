@@ -1,11 +1,12 @@
 using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Ratchet;
+using Ratchet.Cli;
 using Ratchet.Commands;
-using Ratchet.Common;
-using Ratchet.Data;
-using Ratchet.FileHandling;
+using Ratchet.Journal;
 using Ratchet.Models;
+using Ratchet.Parsing;
 using Xunit;
 
 namespace Ratchet.Tests;
@@ -31,7 +32,7 @@ public sealed class ValidateCommandTests : IDisposable
 
         var result = await Command().ExecuteAsync();
 
-        Assert.True(result.Succeeded);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -41,8 +42,8 @@ public sealed class ValidateCommandTests : IDisposable
 
         var result = await Command().ExecuteAsync();
 
-        Assert.True(result.Failed);
-        Assert.Contains("parsing starting file", result.Match(_ => "", e => e.Message), StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result);
+        Assert.Contains("parsing starting file", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -62,8 +63,8 @@ public sealed class ValidateCommandTests : IDisposable
 
         var result = await Command().ExecuteAsync();
 
-        Assert.True(result.Failed);
-        Assert.Contains("parse", result.Match(_ => "", e => e.Message), StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result);
+        Assert.Contains("parse", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -79,8 +80,8 @@ public sealed class ValidateCommandTests : IDisposable
 
         var result = await Command().ExecuteAsync();
 
-        Assert.True(result.Failed);
-        Assert.Contains("Tables/missing.sql", result.Match(_ => "", e => e.Message));
+        Assert.NotNull(result);
+        Assert.Contains("Tables/missing.sql", result.Message);
     }
 
     [Fact]
@@ -90,9 +91,9 @@ public sealed class ValidateCommandTests : IDisposable
         WriteSql("t.sql", "t");
         var dbPath = Path.Combine(_root, "app.db");
         var settings = SettingsFor(database: $"Data Source={dbPath}");
-        var repo = new Repository(new SqliteDbProvider(settings.ConnectionString!), NullLogger<Repository>.Instance);
-        await repo.EnsureMigrationTablesExist();
-        await repo.GetAllMigrationHistories();
+        var journal = new MigrationJournal(new SqliteDbProvider(settings.ConnectionString!), NullLogger<MigrationJournal>.Instance);
+        await journal.EnsureTables();
+        await journal.GetHistories();
         var applied = new Migration
         {
             FileName = "t.sql",
@@ -101,13 +102,13 @@ public sealed class ValidateCommandTests : IDisposable
             Hash = "old-hash",
             ContextFilter = []
         };
-        Assert.True((await repo.ApplyMigration(applied, null)).Succeeded);
+        Assert.True((await journal.Apply(applied, null)).Succeeded);
 
-        var command = Command(settings, repo);
+        var command = Command(settings, journal);
         var result = await command.ExecuteAsync();
 
-        Assert.True(result.Failed);
-        Assert.Contains("need repair", result.Match(_ => "", e => e.Message), StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result);
+        Assert.Contains("need repair", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -117,27 +118,27 @@ public sealed class ValidateCommandTests : IDisposable
         WriteSql("t.sql", "t");
         var dbPath = Path.Combine(_root, "ok.db");
         var settings = SettingsFor(database: $"Data Source={dbPath}");
-        var extractor = new FileMigrationExtractor(Options.Create(settings), NullLogger<FileMigrationExtractor>.Instance);
-        var repo = new Repository(new SqliteDbProvider(settings.ConnectionString!), NullLogger<Repository>.Instance);
-        await repo.EnsureMigrationTablesExist();
-        await repo.GetAllMigrationHistories();
-        var (parsed, error) = extractor.ExtractFromStartingFile(CancellationToken.None);
+        var loader = new MigrationLoader(Options.Create(settings), NullLogger<MigrationLoader>.Instance);
+        var journal = new MigrationJournal(new SqliteDbProvider(settings.ConnectionString!), NullLogger<MigrationJournal>.Instance);
+        await journal.EnsureTables();
+        await journal.GetHistories();
+        var (parsed, error) = loader.Load(CancellationToken.None);
         Assert.Null(error);
-        var migration = parsed!.Values.Single();
-        Assert.True((await repo.ApplyMigration(migration, null)).Succeeded);
+        var migration = parsed!.Single();
+        Assert.True((await journal.Apply(migration, null)).Succeeded);
 
-        var result = await Command(settings, repo).ExecuteAsync();
+        var result = await Command(settings, journal).ExecuteAsync();
 
-        Assert.True(result.Succeeded);
+        Assert.Null(result);
     }
 
-    private ValidateCommand Command(Settings? settings = null, Repository? repo = null)
+    private ValidateCommand Command(Settings? settings = null, MigrationJournal? journal = null)
     {
         settings ??= SettingsFor(database: null);
-        repo ??= new Repository(new UnconfiguredDbProvider(), NullLogger<Repository>.Instance);
+        journal ??= new MigrationJournal(new UnconfiguredDbProvider(), NullLogger<MigrationJournal>.Instance);
         return new ValidateCommand(
-            new FileMigrationExtractor(Options.Create(settings), NullLogger<FileMigrationExtractor>.Instance),
-            repo,
+            new MigrationLoader(Options.Create(settings), NullLogger<MigrationLoader>.Instance),
+            journal,
             Options.Create(settings),
             NullLogger<ValidateCommand>.Instance);
     }

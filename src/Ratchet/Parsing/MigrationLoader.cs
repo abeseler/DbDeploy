@@ -1,6 +1,6 @@
-namespace Ratchet.FileHandling;
+namespace Ratchet.Parsing;
 
-internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogger<FileMigrationExtractor> logger)
+internal sealed class MigrationLoader(IOptions<Settings> settings, ILogger<MigrationLoader> logger)
 {
     private readonly string _workingDirectory = Path.GetFullPath(
         string.IsNullOrWhiteSpace(settings.Value.WorkingDirectory) ? Settings.DefaultWorkingDirectory : settings.Value.WorkingDirectory,
@@ -11,7 +11,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         AllowTrailingCommas = true
     };
 
-    public Result<MigrationCollection> ExtractFromStartingFile(CancellationToken stoppingToken)
+    public Result<IReadOnlyList<Migration>> Load(CancellationToken stoppingToken)
     {
         var startingFileName = string.IsNullOrWhiteSpace(settings.Value.StartingFile)
             ? Settings.DefaultStartingFile
@@ -22,13 +22,11 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         logger.LogDebug("Starting file: {StartingFile}", startingFile.FullName);
 
         if (startingFile.Exists is false)
-        {
-            logger.LogError("{Error}: {StartingFile}", Exceptions.FileDoesNotExist.Message, startingFile.FullName);
-            return Exceptions.StartingFileDoesNotExist(startingFileName);
-        }
+            return Errors.StartingFileDoesNotExist(startingFileName);
 
         var migrationIncludes = new List<MigrationIncludes>();
-        var migrations = new MigrationCollection();
+        var migrations = new List<Migration>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (startingFile.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -40,8 +38,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
             }
             catch (JsonException ex)
             {
-                logger.LogError("{Error}: {StartingFile}\n{Message}", Exceptions.FileParsingError.Message, startingFile.FullName, ex.Message);
-                return new Exception($"Error parsing starting file: {ex.Message}");
+                return Errors.StartingFileParseFailed(ex.Message);
             }
         }
         else if (startingFile.Extension.EndsWith("sql", StringComparison.OrdinalIgnoreCase))
@@ -53,8 +50,7 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
         }
         else
         {
-            logger.LogError("{Error}: {StartingFile}", Exceptions.StartingFileExtensionNotSupported(startingFile.Extension).Message, startingFile.FullName);
-            return Exceptions.StartingFileExtensionNotSupported(startingFile.Extension);
+            return Errors.StartingFileExtensionNotSupported(startingFile.Extension);
         }
 
         var errorCount = 0;
@@ -69,9 +65,9 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                     logger.LogDebug("Extracting migrations from file: {Include}", path);
                     var file = new FileInfo(fullPath);
                     if (IsSqlFile(file))
-                        ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
+                        LoadSqlFile(migrations, seen, file, include, ref errorCount, stoppingToken);
                     else
-                        logger.LogInformation("Skipping non-SQL file: {Include}", path);
+                        logger.LogDebug("Skipping non-SQL file: {Include}", path);
                     continue;
                 }
 
@@ -86,39 +82,71 @@ internal sealed class FileMigrationExtractor(IOptions<Settings> settings, ILogge
                             continue;
                         }
 
-                        ExtractMigrationFromSqlFile(migrations, file, include, ref errorCount, stoppingToken);
+                        LoadSqlFile(migrations, seen, file, include, ref errorCount, stoppingToken);
                     }
                     continue;
                 }
 
                 if (include.ErrorIfMissingOrEmpty)
                 {
-                    logger.LogError("{Error}: {Include}", Exceptions.PathDoesNotExist.Message, path);
+                    logger.LogError("{Error}: {Include}", Errors.PathDoesNotExist.Message, path);
                     errorCount++;
                 }
             }
         }
 
-        return errorCount > 0 ? Exceptions.MigrationsParsingError(errorCount) : migrations;
+        if (errorCount > 0)
+            return Errors.MigrationsParsingError(errorCount);
+
+        logger.LogDebug("Parsed {MigrationCount} migration(s)", migrations.Count);
+        return migrations;
     }
 
-    private void ExtractMigrationFromSqlFile(MigrationCollection migrations, FileInfo file, MigrationIncludes include, ref int errorCount, CancellationToken stoppingToken)
+    private void LoadSqlFile(
+        List<Migration> migrations,
+        HashSet<string> seen,
+        FileInfo file,
+        MigrationIncludes include,
+        ref int errorCount,
+        CancellationToken stoppingToken)
     {
         stoppingToken.ThrowIfCancellationRequested();
         var filePath = GetRelativeFilePath(file);
-        var result = SqlFileParser.Parse(file, filePath, include, stoppingToken);
+        Result<List<Migration>> result;
+        try
+        {
+            using var reader = file.OpenText();
+            result = SqlFileParser.Parse(reader, filePath, ParseOptions.FromInclude(include), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{Error}: {File}", Errors.FileParsingError.Message, filePath);
+            errorCount++;
+            return;
+        }
+
         var parsed = result.Match(
             onSuccess: parsedMigrations => parsedMigrations,
             onFailure: error =>
             {
-                logger.LogError("{Error}: {File}\n{Message}", Exceptions.FileParsingError.Message, filePath, error.Message);
+                logger.LogError("{Error}: {File}\n{Message}", Errors.FileParsingError.Message, filePath, error.Message);
                 return [];
             });
 
         if (result.Failed)
             errorCount++;
 
-        migrations.AddIntersectionFromRange(parsed);
+        foreach (var migration in parsed)
+        {
+            if (seen.Add(migration.Id))
+                migrations.Add(migration);
+            else
+                logger.LogDebug("Skipping already-seen {MigrationId}", migration.Id);
+        }
     }
 
     private string GetRelativeFilePath(FileInfo file)

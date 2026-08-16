@@ -1,5 +1,5 @@
 using Xunit;
-using Ratchet.Common;
+using Ratchet;
 using Ratchet.Models;
 
 namespace Ratchet.Tests;
@@ -24,11 +24,11 @@ public sealed class MigrationOrderResolverTests
         return ordered!.Select(m => m.Id).ToList();
     }
 
-    private static Result<List<Migration>> Resolve(List<Migration> migrations, string[] contexts, AppliedMigration[]? applied = null) =>
+    private static Result<List<Migration>> Resolve(List<Migration> migrations, string[] contexts, MigrationHistory[]? applied = null) =>
         MigrationOrderResolver.Resolve(migrations, contexts, applied ?? []);
 
-    private static AppliedMigration[] Applied(params (string File, string Title)[] items) =>
-        [.. items.Select(x => new AppliedMigration(x.File, x.Title))];
+    private static MigrationHistory[] Applied(params (string File, string Title)[] items) =>
+        [.. items.Select(x => new MigrationHistory { FileName = x.File, Title = x.Title })];
 
     [Fact]
     public void Resolve_PreservesInsertionOrder_WhenNoDependencies()

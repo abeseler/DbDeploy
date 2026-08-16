@@ -1,4 +1,4 @@
-using Ratchet.Common;
+using Ratchet.Cli;
 using Xunit;
 
 namespace Ratchet.Tests;

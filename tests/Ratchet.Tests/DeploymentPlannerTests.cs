@@ -101,6 +101,22 @@ public sealed class DeploymentPlannerTests
     }
 
     [Fact]
+    public void Build_MatchesHistory_WhenFileAndTitleCasingDiffer()
+    {
+        var history = History("Tables/orders.sql", "create", hash: "abc");
+        var migration = New("tables/Orders.sql", "Create", hash: "abc");
+
+        var plan = DeploymentPlanner.Build([migration], new Dictionary<string, MigrationHistory> { [history.MigrationId] = history }, []);
+
+        Assert.Empty(plan.ToApply);
+        Assert.Empty(plan.ToBaseline);
+        Assert.Empty(plan.ToRepair);
+        Assert.Same(history, plan.Histories[migration.Id]);
+        Assert.Equal("tables/Orders.sql [Create]", migration.Id);
+        Assert.Equal("Tables/orders.sql [create]", history.MigrationId);
+    }
+
+    [Fact]
     public void Build_IgnoresNever_EvenWhenHashDriftedOrMissing()
     {
         var drifted = History("parked.sql", "parked", hash: "old");

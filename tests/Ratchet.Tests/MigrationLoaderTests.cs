@@ -1,16 +1,17 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Ratchet.Common;
-using Ratchet.FileHandling;
+using Ratchet;
+using Ratchet.Cli;
+using Ratchet.Parsing;
 using Xunit;
 
 namespace Ratchet.Tests;
 
-public sealed class FileMigrationExtractorTests : IDisposable
+public sealed class MigrationLoaderTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"ratchet-extract-{Guid.NewGuid():N}");
 
-    public FileMigrationExtractorTests() => Directory.CreateDirectory(_root);
+    public MigrationLoaderTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
@@ -32,7 +33,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Equal(["customers.sql [customers:create]", "v2.0/orders.sql [orders:create]"], migrations!.Values.Select(m => m.Id).ToList());
+        Assert.Equal(["customers.sql [customers:create]", "v2.0/orders.sql [orders:create]"], migrations!.Select(m => m.Id).ToList());
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Empty(migrations!.Values);
+        Assert.Empty(migrations!);
     }
 
     [Fact]
@@ -110,7 +111,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Equal(["ok.sql [ok:create]"], migrations!.Values.Select(m => m.Id).ToList());
+        Assert.Equal(["ok.sql [ok:create]"], migrations!.Select(m => m.Id).ToList());
     }
 
     [Fact]
@@ -129,7 +130,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Equal(["Tables/customers.sql [customers:create]"], migrations!.Values.Select(m => m.Id).ToList());
+        Assert.Equal(["Tables/customers.sql [customers:create]"], migrations!.Select(m => m.Id).ToList());
     }
 
     [Fact]
@@ -146,7 +147,7 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Empty(migrations!.Values);
+        Assert.Empty(migrations!);
     }
 
     [Fact]
@@ -164,20 +165,20 @@ public sealed class FileMigrationExtractorTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(migrations);
-        Assert.Equal(["ok.sql [ok:create]"], migrations!.Values.Select(m => m.Id).ToList());
+        Assert.Equal(["ok.sql [ok:create]"], migrations!.Select(m => m.Id).ToList());
     }
 
-    private Result<Ratchet.Models.MigrationCollection> Extract(string? startingFile)
+    private Result<IReadOnlyList<Ratchet.Models.Migration>> Extract(string? startingFile)
     {
         var settings = new Settings { WorkingDirectory = _root };
         if (startingFile is not null)
             settings.StartingFile = startingFile;
 
-        var extractor = new FileMigrationExtractor(
+        var loader = new MigrationLoader(
             Options.Create(settings),
-            NullLogger<FileMigrationExtractor>.Instance);
+            NullLogger<MigrationLoader>.Instance);
 
-        return extractor.ExtractFromStartingFile(CancellationToken.None);
+        return loader.Load(CancellationToken.None);
     }
 
     private static void WriteSql(string path, string title) =>

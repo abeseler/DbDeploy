@@ -1,10 +1,7 @@
 using Dapper;
-using Ratchet;
-using Ratchet.FileHandling;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.OpenTelemetry;
-
 
 var parsed = Arguments.Peel(args);
 if (parsed.CommandSpecifiedTwice)
@@ -20,17 +17,17 @@ var configuration = new ConfigurationBuilder()
     .AddCommandLine(parsed.Remaining, Arguments.Mapping);
 
 if (parsed.PositionalCommand is not null)
-    configuration.AddInMemoryCollection([new("Deploy:Command", parsed.PositionalCommand)]);
+    configuration.AddInMemoryCollection([new($"{Settings.SectionName}:Command", parsed.PositionalCommand)]);
 
 var config = configuration.Build();
 
-if (Usage.IsHelpRequest(args) || Usage.IsHelpCommand(config["Deploy:Command"]))
+if (Usage.IsHelpRequest(args) || Usage.IsHelpCommand(config[$"{Settings.SectionName}:Command"]))
 {
     Usage.Write();
     return;
 }
 
-if (Usage.IsVersionRequest(args) || Usage.IsVersionCommand(config["Deploy:Command"]))
+if (Usage.IsVersionRequest(args) || Usage.IsVersionCommand(config[$"{Settings.SectionName}:Command"]))
 {
     Usage.WriteVersion();
     return;
@@ -80,7 +77,7 @@ services.AddLogging(b =>
 services.AddOptions<Settings>().BindConfiguration(Settings.SectionName);
 services.AddSingleton<App>();
 
-services.AddSingleton<FileMigrationExtractor>();
+services.AddSingleton<MigrationLoader>();
 services.AddSingleton<UpdateCommand>();
 services.AddSingleton<StatusCommand>();
 services.AddSingleton<ValidateCommand>();
@@ -89,7 +86,7 @@ services.AddSingleton<BaselineCommand>();
 services.AddSingleton<RepairCommand>();
 services.AddSingleton<CommandResolver>();
 
-services.AddSingleton<Repository>();
+services.AddSingleton<MigrationJournal>();
 services.AddSingleton<IDatabaseProvider>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<Settings>>().Value;

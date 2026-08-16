@@ -1,21 +1,23 @@
-namespace Ratchet.Common;
+namespace Ratchet.Cli;
 
 internal static class Arguments
 {
     public static readonly Dictionary<string, string> Mapping = new()
     {
-        { "--command", "Deploy:Command" },
-        { "--migrations", "Deploy:WorkingDirectory" },
-        { "--startingFile", "Deploy:StartingFile" },
-        { "--maxLockWait", "Deploy:LockWaitMaxSeconds" },
-        { "--contexts", "Deploy:Contexts" },
-        { "--provider", "Deploy:DatabaseProvider" },
-        { "--connectionString", "Deploy:ConnectionString" },
-        { "--connectionAttempts", "Deploy:ConnectionAttempts" },
-        { "--connectionRetryDelay", "Deploy:ConnectionRetryDelaySeconds" },
-        { "--outputFile", "Deploy:OutputFile" },
+        { "--command", Key("Command") },
+        { "--migrations", Key("WorkingDirectory") },
+        { "--startingFile", Key("StartingFile") },
+        { "--maxLockWait", Key("LockWaitMaxSeconds") },
+        { "--contexts", Key("Contexts") },
+        { "--provider", Key("DatabaseProvider") },
+        { "--connectionString", Key("ConnectionString") },
+        { "--connectionAttempts", Key("ConnectionAttempts") },
+        { "--connectionRetryDelay", Key("ConnectionRetryDelaySeconds") },
+        { "--outputFile", Key("OutputFile") },
         { "--logLevel", "Serilog:MinimumLevel:Default" }
     };
+
+    private static string Key(string name) => $"{Settings.SectionName}:{name}";
 
     public readonly record struct Parsed(string? PositionalCommand, string[] Remaining, bool CommandSpecifiedTwice);
 

@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Ratchet.Common;
+namespace Ratchet.Cli;
 
 internal static class AppVersion
 {

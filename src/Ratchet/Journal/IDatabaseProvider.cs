@@ -2,19 +2,19 @@ using System.Data;
 using System.Globalization;
 using Dapper;
 
-namespace Ratchet.Data;
+namespace Ratchet.Journal;
 
-public interface IDatabaseProvider
+internal interface IDatabaseProvider
 {
-    public Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken);
-    public Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken);
-    public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken);
-    public string EnsureMigrationTablesExist { get; }
-    public string AcquireLock { get; }
-    public string ReleaseLock { get; }
-    public string GetAllMigrationHistories { get; }
-    public string InsertMigrationHistory { get; }
-    public string UpdateMigrationHistory { get; }
+    Task<IDbConnection> ConnectAsync(CancellationToken cancellationToken);
+    Task<bool> TryAcquireSessionLock(IDbConnection connection, TimeSpan timeout, CancellationToken cancellationToken);
+    Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken);
+    string EnsureTables { get; }
+    string InsertLock { get; }
+    string FinishLock { get; }
+    string SelectHistories { get; }
+    string InsertHistory { get; }
+    string UpdateHistory { get; }
 }
 
 internal sealed class UnconfiguredDbProvider : IDatabaseProvider
@@ -27,12 +27,12 @@ internal sealed class UnconfiguredDbProvider : IDatabaseProvider
 
     public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public string EnsureMigrationTablesExist => "";
-    public string AcquireLock => "";
-    public string ReleaseLock => "";
-    public string GetAllMigrationHistories => "";
-    public string InsertMigrationHistory => "";
-    public string UpdateMigrationHistory => "";
+    public string EnsureTables => "";
+    public string InsertLock => "";
+    public string FinishLock => "";
+    public string SelectHistories => "";
+    public string InsertHistory => "";
+    public string UpdateHistory => "";
 }
 
 internal sealed class PostgresDbProvider(string connectionString) : IDatabaseProvider
@@ -64,7 +64,7 @@ internal sealed class PostgresDbProvider(string connectionString) : IDatabasePro
         connection.ExecuteAsync(new CommandDefinition(
             "SELECT pg_advisory_unlock((SELECT oid::int FROM pg_database WHERE datname = current_database()), @Key)",
             new { Key = LockKey }, cancellationToken: cancellationToken));
-    public string EnsureMigrationTablesExist => """
+    public string EnsureTables => """
         CREATE TABLE IF NOT EXISTS __migration_lock (
             deployment_id INT GENERATED ALWAYS AS IDENTITY,
             started_on TIMESTAMP NOT NULL,
@@ -86,25 +86,25 @@ internal sealed class PostgresDbProvider(string connectionString) : IDatabasePro
             CONSTRAINT uq__migration_history__key UNIQUE (file_name, title)
         );
         """;
-    public string AcquireLock => """
+    public string InsertLock => """
         INSERT INTO __migration_lock (started_on)
         VALUES (NOW() AT TIME ZONE 'utc')
         RETURNING deployment_id, started_on, finished_on;
         """;
-    public string ReleaseLock => """
+    public string FinishLock => """
         UPDATE __migration_lock
         SET finished_on = NOW() AT TIME ZONE 'utc'
         WHERE deployment_id = @DeploymentId;
         """;
-    public string GetAllMigrationHistories => """
+    public string SelectHistories => """
         SELECT id, file_name, title, executed_on, executed_sequence, hash, deployment_id
         FROM __migration_history;
         """;
-    public string InsertMigrationHistory => """
+    public string InsertHistory => """
         INSERT INTO __migration_history (file_name, title, executed_on, executed_sequence, hash, deployment_id)
         VALUES (@FileName, @Title, @ExecutedOn, @ExecutedSequence, @Hash, @DeploymentId);
         """;
-    public string UpdateMigrationHistory => """
+    public string UpdateHistory => """
         UPDATE __migration_history
         SET executed_on = @ExecutedOn, executed_sequence = @ExecutedSequence, hash = @Hash, deployment_id = @DeploymentId
         WHERE id = @Id;
@@ -138,7 +138,7 @@ internal sealed class MsSqlDbProvider(string connectionString) : IDatabaseProvid
         parameters.Add("@LockOwner", "Session");
         return connection.ExecuteAsync(new CommandDefinition("sp_releaseapplock", parameters, commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
     }
-    public string EnsureMigrationTablesExist => """
+    public string EnsureTables => """
         IF OBJECT_ID(N'[__migration_lock]', N'U') IS NULL
         CREATE TABLE [__migration_lock] (
             deployment_id INT NOT NULL IDENTITY(1,1),
@@ -161,25 +161,25 @@ internal sealed class MsSqlDbProvider(string connectionString) : IDatabaseProvid
             CONSTRAINT uq__migration_history__key UNIQUE NONCLUSTERED (file_name, title)
         );
         """;
-    public string AcquireLock => """
+    public string InsertLock => """
         INSERT INTO [__migration_lock] ([started_on])
         OUTPUT inserted.deployment_id, inserted.started_on, inserted.finished_on
         VALUES (GETUTCDATE());
         """;
-    public string ReleaseLock => """
+    public string FinishLock => """
         UPDATE [__migration_lock]
         SET [finished_on] = GETUTCDATE()
         WHERE [deployment_id] = @DeploymentId;
         """;
-    public string GetAllMigrationHistories => """
+    public string SelectHistories => """
         SELECT [id], [file_name], [title], [executed_on], [executed_sequence], [hash], [deployment_id]
         FROM [__migration_history];
         """;
-    public string InsertMigrationHistory => """
+    public string InsertHistory => """
         INSERT INTO [__migration_history] ([file_name], [title], [executed_on], [executed_sequence], [hash], [deployment_id])
         VALUES (@FileName, @Title, @ExecutedOn, @ExecutedSequence, @Hash, @DeploymentId);
         """;
-    public string UpdateMigrationHistory => """
+    public string UpdateHistory => """
         UPDATE [__migration_history]
         SET [executed_on] = @ExecutedOn, [executed_sequence] = @ExecutedSequence, [hash] = @Hash, [deployment_id] = @DeploymentId
         WHERE [id] = @Id;
@@ -225,7 +225,7 @@ internal sealed class SqliteDbProvider : IDatabaseProvider
         }
     }
     public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) => Task.CompletedTask;
-    public string EnsureMigrationTablesExist => """
+    public string EnsureTables => """
         CREATE TABLE IF NOT EXISTS __migration_lock (
             deployment_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
             started_on TEXT NOT NULL,
@@ -245,25 +245,25 @@ internal sealed class SqliteDbProvider : IDatabaseProvider
             CONSTRAINT uq__migration_history__key UNIQUE (file_name, title)
         );
         """;
-    public string AcquireLock => """
+    public string InsertLock => """
         INSERT INTO __migration_lock (started_on)
         VALUES (strftime('%Y-%m-%d %H:%M:%f', 'now') || '+00:00')
         RETURNING deployment_id, started_on, finished_on;
         """;
-    public string ReleaseLock => """
+    public string FinishLock => """
         UPDATE __migration_lock
         SET finished_on = strftime('%Y-%m-%d %H:%M:%f', 'now') || '+00:00'
         WHERE deployment_id = @DeploymentId;
         """;
-    public string GetAllMigrationHistories => """
+    public string SelectHistories => """
         SELECT id, file_name, title, executed_on, executed_sequence, hash, deployment_id
         FROM __migration_history;
         """;
-    public string InsertMigrationHistory => """
+    public string InsertHistory => """
         INSERT INTO __migration_history (file_name, title, executed_on, executed_sequence, hash, deployment_id)
         VALUES (@FileName, @Title, @ExecutedOn, @ExecutedSequence, @Hash, @DeploymentId);
         """;
-    public string UpdateMigrationHistory => """
+    public string UpdateHistory => """
         UPDATE __migration_history
         SET executed_on = @ExecutedOn, executed_sequence = @ExecutedSequence, hash = @Hash, deployment_id = @DeploymentId
         WHERE id = @Id;

@@ -13,13 +13,13 @@ internal static class RatchetResourceExtensions
     {
         var migrationsDir = MigrationsDirectory(builder);
         var ratchet = builder.AddProject<Projects.Ratchet>(name)
-            .WithEnvironment("Deploy__Command", "update")
-            .WithEnvironment("Deploy__StartingFile", startingFile)
-            .WithEnvironment("Deploy__DatabaseProvider", provider)
-            .WithEnvironment("Deploy__WorkingDirectory", migrationsDir)
-            .WithEnvironment("Deploy__ConnectionString", database)
-            .WithEnvironment("Deploy__ConnectionAttempts", "3")
-            .WithEnvironment("Deploy__ConnectionRetryDelaySeconds", "5")
+            .WithEnvironment("Ratchet__Command", "update")
+            .WithEnvironment("Ratchet__StartingFile", startingFile)
+            .WithEnvironment("Ratchet__DatabaseProvider", provider)
+            .WithEnvironment("Ratchet__WorkingDirectory", migrationsDir)
+            .WithEnvironment("Ratchet__ConnectionString", database)
+            .WithEnvironment("Ratchet__ConnectionAttempts", "3")
+            .WithEnvironment("Ratchet__ConnectionRetryDelaySeconds", "5")
             .WithEnvironment("Serilog__MinimumLevel__Default", "Debug")
             .WithParentRelationship(database)
             .WithExplicitStart();
@@ -28,7 +28,7 @@ internal static class RatchetResourceExtensions
             ratchet.WaitFor(database);
 
         if (contexts is not null)
-            ratchet.WithEnvironment("Deploy__Contexts", contexts);
+            ratchet.WithEnvironment("Ratchet__Contexts", contexts);
 
         return ratchet.WithRatchetCommands(builder, database, provider, startingFile, contexts);
     }
@@ -85,21 +85,21 @@ internal static class RatchetResourceExtensions
                     WorkingDirectory = projectDir
                 };
 
-                spec.EnvironmentVariables["Deploy__Command"] = command;
-                spec.EnvironmentVariables["Deploy__DatabaseProvider"] = provider;
-                spec.EnvironmentVariables["Deploy__StartingFile"] = startingFile;
-                spec.EnvironmentVariables["Deploy__WorkingDirectory"] = migrationsDir;
-                spec.EnvironmentVariables["Deploy__ConnectionString"] = connectionString;
-                spec.EnvironmentVariables["Deploy__ConnectionAttempts"] = "3";
-                spec.EnvironmentVariables["Deploy__ConnectionRetryDelaySeconds"] = "5";
-                spec.EnvironmentVariables["Deploy__OutputFile"] = planPath;
+                spec.EnvironmentVariables["Ratchet__Command"] = command;
+                spec.EnvironmentVariables["Ratchet__DatabaseProvider"] = provider;
+                spec.EnvironmentVariables["Ratchet__StartingFile"] = startingFile;
+                spec.EnvironmentVariables["Ratchet__WorkingDirectory"] = migrationsDir;
+                spec.EnvironmentVariables["Ratchet__ConnectionString"] = connectionString;
+                spec.EnvironmentVariables["Ratchet__ConnectionAttempts"] = "3";
+                spec.EnvironmentVariables["Ratchet__ConnectionRetryDelaySeconds"] = "5";
+                spec.EnvironmentVariables["Ratchet__OutputFile"] = planPath;
                 spec.EnvironmentVariables["Serilog__MinimumLevel__Default"] = "Information";
 
                 if (contexts is not null)
                 {
                     var value = await contexts.Resource.GetValueAsync(context.CancellationToken);
                     if (string.IsNullOrWhiteSpace(value) is false)
-                        spec.EnvironmentVariables["Deploy__Contexts"] = value;
+                        spec.EnvironmentVariables["Ratchet__Contexts"] = value;
                 }
 
                 return spec;

@@ -1,8 +1,8 @@
-namespace Ratchet.Common;
+namespace Ratchet.Cli;
 
 internal sealed class Settings
 {
-    public const string SectionName = "Deploy";
+    public const string SectionName = "Ratchet";
     public const string DefaultWorkingDirectory = "Migrations";
     public const string DefaultStartingFile = "ratchet.json";
     public const string DefaultDatabaseProvider = "postgres";

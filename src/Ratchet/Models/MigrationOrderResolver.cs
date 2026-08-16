@@ -2,7 +2,7 @@ namespace Ratchet.Models;
 
 internal static class MigrationOrderResolver
 {
-    public static Result<List<Migration>> Resolve(IReadOnlyList<Migration> migrations, string[] contexts, IReadOnlyCollection<AppliedMigration> applied)
+    public static Result<List<Migration>> Resolve(IReadOnlyList<Migration> migrations, string[] contexts, IEnumerable<MigrationHistory> applied)
     {
         var appliedFileKeys = applied.Select(a => Key(a.FileName)).ToHashSet();
         var appliedBlockKeys = applied.Select(a => BlockKey(a.FileName, a.Title)).ToHashSet();
@@ -44,7 +44,7 @@ internal static class MigrationOrderResolver
             {
                 var (file, title) = ParseReference(reference);
                 if (file.Length == 0 || title is { Length: 0 })
-                    return Exceptions.DependencyNotFound(migrations[i].Id, reference);
+                    return Errors.DependencyNotFound(migrations[i].Id, reference);
 
                 var key = Key(file);
                 if (filesByKey.TryGetValue(key, out var fileTargets) is false)
@@ -52,11 +52,11 @@ internal static class MigrationOrderResolver
                     if (IsApplied(file, title, appliedFileKeys, appliedBlockKeys))
                         continue;
 
-                    return Exceptions.DependencyNotFound(migrations[i].Id, reference);
+                    return Errors.DependencyNotFound(migrations[i].Id, reference);
                 }
 
                 if (distinctNamesByKey[key].Count > 1)
-                    return Exceptions.DependencyAmbiguous(migrations[i].Id, reference);
+                    return Errors.DependencyAmbiguous(migrations[i].Id, reference);
 
                 var targets = fileTargets;
                 if (title is not null)
@@ -70,11 +70,11 @@ internal static class MigrationOrderResolver
                         if (IsApplied(file, title, appliedFileKeys, appliedBlockKeys))
                             continue;
 
-                        return Exceptions.DependencyNotFound(migrations[i].Id, reference);
+                        return Errors.DependencyNotFound(migrations[i].Id, reference);
                     }
 
                     if (titleMatches.Count > 1)
-                        return Exceptions.DependencyAmbiguous(migrations[i].Id, reference);
+                        return Errors.DependencyAmbiguous(migrations[i].Id, reference);
 
                     targets = titleMatches;
                 }
@@ -95,7 +95,7 @@ internal static class MigrationOrderResolver
                 }
 
                 if (addedEdge is false && targets.Any(t => inContext[t]) is false)
-                    return Exceptions.DependencyFilteredOut(migrations[i].Id, reference);
+                    return Errors.DependencyFilteredOut(migrations[i].Id, reference);
             }
         }
 
@@ -121,7 +121,7 @@ internal static class MigrationOrderResolver
         }
 
         if (ordered.Count < count)
-            return Exceptions.DependencyCycle(DescribeCycle(migrations, predecessors, indegree));
+            return Errors.DependencyCycle(DescribeCycle(migrations, predecessors, indegree));
 
         return ordered;
     }

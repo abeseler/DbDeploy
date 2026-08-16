@@ -1,45 +1,38 @@
-using Ratchet.FileHandling;
-
 namespace Ratchet.Commands;
 
-internal sealed class BaselineCommand(FileMigrationExtractor extractor, Repository repo, IOptions<Settings> settings, ILogger<BaselineCommand> logger) : ICommand
+internal sealed class BaselineCommand(MigrationLoader loader, MigrationJournal journal, IOptions<Settings> settings, ILogger<BaselineCommand> logger) : ICommand
 {
     public string Name => CommandNames.Baseline;
 
-    public async Task<Result<Success>> ExecuteAsync(CancellationToken stoppingToken = default)
+    public async Task<Error?> ExecuteAsync(CancellationToken stoppingToken = default)
     {
-        logger.LogInformation("Executing {Command} command", Name);
-
-        var (parsed, extractionError) = extractor.ExtractFromStartingFile(stoppingToken);
-        if (extractionError is not null)
-            return extractionError;
+        if (!loader.Load(stoppingToken).TryGet(out var parsed, out var loadError))
+            return loadError;
 
         try
         {
-            if (await repo.AcquireLock(TimeSpan.FromSeconds(settings.Value.LockWaitMaxSeconds), stoppingToken) is false)
-                return Exceptions.FailedToAcquireLock;
+            if (await journal.AcquireLock(TimeSpan.FromSeconds(settings.Value.LockWaitMaxSeconds), stoppingToken) is false)
+                return Errors.FailedToAcquireLock;
 
-            var histories = await repo.GetAllMigrationHistories(stoppingToken);
-            var (plan, planError) = DeploymentPlanner.Prepare(parsed!.Values.ToList(), histories, settings.Value.ParseContexts());
-            if (planError is not null)
+            var histories = await journal.GetHistories(stoppingToken);
+            if (!DeploymentPlanner.Prepare(parsed, histories, settings.Value.ParseContexts()).TryGet(out var plan, out var planError))
                 return planError;
-            ArgumentNullException.ThrowIfNull(plan);
 
             var baselined = new List<string>(plan.ToBaseline.Count);
             foreach (var (migration, history) in plan.ToBaseline)
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 logger.LogInformation("Baselining {MigrationId}", migration.Id);
-                await repo.BaselineMigrationHistory(migration, history, stoppingToken);
+                await journal.Baseline(migration, history, stoppingToken);
                 baselined.Add(migration.Id);
             }
 
             logger.LogInformation("{Report}", PlanReport.Baseline(baselined, plan));
-            return Success.Default;
+            return null;
         }
         finally
         {
-            await repo.ReleaseLock(stoppingToken);
+            await journal.ReleaseLock(stoppingToken);
         }
     }
 }

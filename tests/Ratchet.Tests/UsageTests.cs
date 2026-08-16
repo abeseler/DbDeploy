@@ -1,5 +1,5 @@
 using Ratchet.Commands;
-using Ratchet.Common;
+using Ratchet.Cli;
 using Xunit;
 
 namespace Ratchet.Tests;
@@ -70,4 +70,8 @@ public sealed class UsageTests
     [Fact]
     public void Text_ShowsSubcommandUsage() =>
         Assert.Contains("ratchet <update|status|validate|dryrun|baseline|repair>", Usage.Text);
+
+    [Fact]
+    public void Text_DocumentsTheRatchetEnvPrefix() =>
+        Assert.Contains("Ratchet__Command", Usage.Text);
 }

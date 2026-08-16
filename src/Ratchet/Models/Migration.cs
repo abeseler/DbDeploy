@@ -24,7 +24,7 @@ internal sealed record Migration
         _ => false
     };
 
-    public bool HasInvalidChange(MigrationHistory? history) =>
+    public bool HasDrift(MigrationHistory? history) =>
         Run is RunMode.Once && history is { Hash: not null } && Hash != history.Hash;
 
     public enum RunMode

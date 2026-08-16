@@ -3,10 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Ratchet.Cli;
 using Ratchet.Commands;
-using Ratchet.Common;
-using Ratchet.Data;
-using Ratchet.FileHandling;
+using Ratchet.Journal;
+using Ratchet.Parsing;
 using Xunit;
 
 namespace Ratchet.Tests;
@@ -21,8 +21,8 @@ public sealed class AppTests
         {
             Environment.ExitCode = 0;
             var settings = Options.Create(new Settings { Command = null });
-            var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(new FailingDbProvider(), NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -43,8 +43,8 @@ public sealed class AppTests
         {
             Environment.ExitCode = 0;
             var settings = Options.Create(new Settings { Command = "foobar" });
-            var repository = new Repository(provider, NullLogger<Repository>.Instance);
-            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(provider, NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -66,8 +66,8 @@ public sealed class AppTests
         {
             Environment.ExitCode = 0;
             var settings = Options.Create(new Settings { Command = "validate" });
-            var repository = new Repository(provider, NullLogger<Repository>.Instance);
-            var app = new App(repository, ResolverForValidate(settings, repository), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(provider, NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, ResolverForValidate(settings, journal), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -88,8 +88,8 @@ public sealed class AppTests
         {
             Environment.ExitCode = 1;
             var settings = Options.Create(new Settings { Command = "version" });
-            var repository = new Repository(provider, NullLogger<Repository>.Instance);
-            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(provider, NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -110,8 +110,8 @@ public sealed class AppTests
         {
             Environment.ExitCode = 1;
             var settings = Options.Create(new Settings { Command = "help" });
-            var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(new FailingDbProvider(), NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -136,8 +136,8 @@ public sealed class AppTests
                 ConnectionAttempts = 1,
                 ConnectionRetryDelaySeconds = 0
             });
-            var repository = new Repository(new FailingDbProvider(), NullLogger<Repository>.Instance);
-            var app = new App(repository, UnusedResolver(), settings, NullLogger<App>.Instance);
+            var journal = new MigrationJournal(new FailingDbProvider(), NullLogger<MigrationJournal>.Instance);
+            var app = new App(journal, UnusedResolver(), settings, NullLogger<App>.Instance);
 
             await app.RunAsync();
 
@@ -152,14 +152,14 @@ public sealed class AppTests
     private static CommandResolver UnusedResolver() =>
         new(new ServiceCollection().BuildServiceProvider());
 
-    private static CommandResolver ResolverForValidate(IOptions<Settings> settings, Repository repository)
+    private static CommandResolver ResolverForValidate(IOptions<Settings> settings, MigrationJournal journal)
     {
         var services = new ServiceCollection();
         services.AddSingleton(settings);
-        services.AddSingleton(repository);
-        services.AddSingleton<ILogger<FileMigrationExtractor>>(NullLogger<FileMigrationExtractor>.Instance);
+        services.AddSingleton(journal);
+        services.AddSingleton<ILogger<MigrationLoader>>(NullLogger<MigrationLoader>.Instance);
         services.AddSingleton<ILogger<ValidateCommand>>(NullLogger<ValidateCommand>.Instance);
-        services.AddSingleton<FileMigrationExtractor>();
+        services.AddSingleton<MigrationLoader>();
         services.AddSingleton<ValidateCommand>();
         return new CommandResolver(services.BuildServiceProvider());
     }
@@ -179,11 +179,11 @@ public sealed class AppTests
 
         public Task ReleaseSessionLock(IDbConnection connection, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public string EnsureMigrationTablesExist => "";
-        public string AcquireLock => "";
-        public string ReleaseLock => "";
-        public string GetAllMigrationHistories => "";
-        public string InsertMigrationHistory => "";
-        public string UpdateMigrationHistory => "";
+        public string EnsureTables => "";
+        public string InsertLock => "";
+        public string FinishLock => "";
+        public string SelectHistories => "";
+        public string InsertHistory => "";
+        public string UpdateHistory => "";
     }
 }
