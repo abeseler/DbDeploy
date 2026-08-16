@@ -8,15 +8,6 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 CSPROJ="$SCRIPT_DIR/src/Ratchet/Ratchet.csproj"
 
-COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-echo "Commit message: $COMMIT_MESSAGE"
-
-if [[ $COMMIT_MESSAGE == nobuild:* ]]
-then
-    echo "Skipping version tagging due to nobuild commit"
-    exit 0
-fi
-
 if [[ ! -f "$CSPROJ" ]]
 then
     echo "Project file not found: $CSPROJ"

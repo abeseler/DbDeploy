@@ -3,6 +3,13 @@ name: Tag version
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - "README.md"
+      - "LICENSE"
+      - "samples/**"
+      - "src/AppHost/**"
+      - ".editorconfig"
+      - ".gitattributes"
   workflow_dispatch:
   
 permissions:
@@ -24,12 +31,12 @@ jobs:
           fetch-tags: true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.x'
   
       - name: Test
-        run: dotnet test --logger "trx;LogFileName=test-results.trx" || true
+        run: dotnet test --logger "trx;LogFileName=test-results.trx"
   
       - name: Test Report
         uses: dorny/test-reporter@v1.6.0
