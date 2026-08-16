@@ -108,7 +108,7 @@ Both commands take the deployment lock, honor `--contexts`, and can be re-run sa
 
 ## Configuration
 
-Flags and environment variables set the same options. Env vars use the `Ratchet__` prefix (and `__` for nesting). The image is on [Docker Hub](https://hub.docker.com/r/abeseler/ratchet). Mount your SQL at `/app/Migrations`.
+Flags and environment variables set the same options. Env vars use the `Ratchet__` prefix (and `__` for nesting). The image is on [Docker Hub](https://hub.docker.com/r/abeseler/ratchet) (`linux/amd64` and `linux/arm64`; `docker pull` selects the host arch, or pass `--platform linux/arm64` / `linux/amd64`). Mount your SQL at `/app/Migrations`.
 
 | Flag | Environment | Default |
 |---|---|---|
@@ -128,7 +128,9 @@ Flags and environment variables set the same options. Env vars use the `Ratchet_
 
 Relative `--migrations` and `--outputFile` paths are resolved from the process working directory.
 
-Releases are the `<Version>` in `src/Ratchet/Ratchet.csproj`. A push to `main` tags that number when it is newer than the latest git tag; Docker builds from the tag. A commit that does not bump `<Version>` is not a release.
+Releases are the `<Version>` in `src/Ratchet/Ratchet.csproj`. A push to `main` tags that number when it is newer than the latest git tag; Docker and GitHub Release binaries are built from the tag. A commit that does not bump `<Version>` is not a release.
+
+Each release image is tagged `abeseler/ratchet:<version>` (and `latest`). That tag is a multi-arch manifest: `docker pull` selects amd64 or arm64 for the host, or pass `--platform linux/arm64` / `linux/amd64`. GitHub Release assets are self-contained single-file binaries — pick the RID for your OS and CPU: `ratchet-linux-x64`, `ratchet-linux-arm64`, `ratchet-win-x64.exe`, `ratchet-win-arm64.exe`, `ratchet-osx-x64`, `ratchet-osx-arm64`.
 
 ## Starting File
 
